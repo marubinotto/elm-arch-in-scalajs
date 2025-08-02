@@ -27,7 +27,7 @@
   - Write integration tests for DOM manipulation operations
   - _Requirements: 2.4_
 
-- [ ] 5. Create core architecture types and abstractions
+- [x] 5. Create core architecture types and abstractions
   - Implement Update case class for model and command results
   - Create App trait with init, update, view, and subscriptions methods
   - Implement Cmd sealed trait with CmdNone, CmdBatch, and CmdTask variants
