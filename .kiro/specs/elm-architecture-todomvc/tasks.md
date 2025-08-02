@@ -6,7 +6,7 @@
   - Set up project directory structure for core architecture and TodoMVC app
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 2. Implement core virtual DOM types and creation functions
+- [x] 2. Implement core virtual DOM types and creation functions
   - Create VNode sealed trait with VElement and VText case classes
   - Implement Html object with element creation functions (div, input, button, text)
   - Create Events object with IO-based event handlers (onClick, onInput, onKeyDown)
