@@ -1,0 +1,67 @@
+# Scala.js and SBT
+target/
+project/target/
+project/project/target/
+*.class
+*.log
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# SBT specific
+.history
+.cache
+.lib/
+dist/*
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+
+# Scala-IDE specific
+.scala_dependencies
+.worksheet
+.cache-main
+.cache-tests
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# VS Code
+.vscode/
+.metals/
+.bloop/
+metals.sbt
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node.js (if using npm for frontend tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Scala.js output
+*.js.map
+fastopt/
+fullopt/
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db

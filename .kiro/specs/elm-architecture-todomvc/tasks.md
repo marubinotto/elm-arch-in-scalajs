@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Set up project structure and dependencies
+- [x] 1. Set up project structure and dependencies
   - Create Scala.js project with build.sbt configuration
   - Add dependencies for Cats Effect, QuickLens, ScalaTest, and Scala.js DOM
   - Set up project directory structure for core architecture and TodoMVC app
