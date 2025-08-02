@@ -73,9 +73,99 @@ object TodoApp extends App[TodoModel, TodoMsg] {
       case SaveComplete =>
         Update(model, Cmd.none)
 
-      // Handle other messages that aren't implemented in this task
-      case _ =>
-        // For now, return the model unchanged for unhandled messages
+      // Delete a todo by ID
+      case DeleteTodo(id) =>
+        val updatedModel = model
+          .modify(_.todos)
+          .using(_.filterNot(_.id == id))
+        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+
+      // Enter edit mode for a specific todo
+      case EditTodo(id) =>
+        model.getTodo(id) match {
+          case Some(todo) =>
+            val updatedModel = model
+              .modify(_.editingTodo)
+              .setTo(Some(id))
+              .modify(_.editText)
+              .setTo(todo.text)
+              .modify(_.todos.eachWhere(_.id == id).editing)
+              .setTo(true)
+            Update(updatedModel, Cmd.none)
+          case None =>
+            // Todo not found - no change
+            Update(model, Cmd.none)
+        }
+
+      // Update a todo's text with validation
+      case UpdateTodo(id, text) =>
+        val trimmedText = text.trim
+        if (trimmedText.nonEmpty) {
+          val updatedModel = model
+            .modify(_.todos.eachWhere(_.id == id))
+            .using(_.copy(text = trimmedText, editing = false))
+            .modify(_.editingTodo)
+            .setTo(None)
+            .modify(_.editText)
+            .setTo("")
+          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        } else {
+          // Empty text - delete the todo instead
+          val updatedModel = model
+            .modify(_.todos)
+            .using(_.filterNot(_.id == id))
+            .modify(_.editingTodo)
+            .setTo(None)
+            .modify(_.editText)
+            .setTo("")
+          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        }
+
+      // Cancel editing without saving changes
+      case CancelEdit =>
+        val updatedModel = model
+          .modify(_.todos.each.editing)
+          .setTo(false)
+          .modify(_.editingTodo)
+          .setTo(None)
+          .modify(_.editText)
+          .setTo("")
+        Update(updatedModel, Cmd.none)
+
+      // Update the edit input text in real-time
+      case UpdateEditText(text) =>
+        val updatedModel = model.modify(_.editText).setTo(text)
+        Update(updatedModel, Cmd.none)
+
+      // Toggle all todos between completed and not completed
+      case ToggleAll =>
+        val shouldComplete = !model.allCompleted
+        val updatedModel = model
+          .modify(_.todos.each.completed)
+          .setTo(shouldComplete)
+        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+
+      // Remove all completed todos
+      case ClearCompleted =>
+        val updatedModel = model
+          .modify(_.todos)
+          .using(_.filterNot(_.completed))
+        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+
+      // Trigger auto-save operation
+      case AutoSave =>
+        Update(model, Cmd.task(saveTodosToStorage(model.todos)))
+
+      // Handle network or storage errors
+      case NetworkError(error) =>
+        // For now, just log the error and continue
+        // In a real app, you might show user feedback
+        Update(model, Cmd.none)
+
+      // Handle validation errors
+      case ValidationError(field, message) =>
+        // For now, just log the error and continue
+        // In a real app, you might show user feedback
         Update(model, Cmd.none)
     }
 
