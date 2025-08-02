@@ -35,7 +35,7 @@
   - Add Cmd and Sub companion objects with helper functions
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 6. Implement application runtime with concurrent message processing
+- [x] 6. Implement application runtime with concurrent message processing
   - Create Runtime class that manages model state using Cats Effect Ref
   - Implement message queue processing with Queue for handling TodoMsg
   - Add concurrent rendering loop that updates DOM when model changes
@@ -44,7 +44,7 @@
   - Write unit tests for runtime message processing and state management
   - _Requirements: 1.5_
 
-- [ ] 7. Define TodoMVC data models and message types
+- [x] 7. Define TodoMVC data models and message types
   - Create Todo case class with id, text, completed, and editing fields
   - Implement TodoModel case class with todos list, newTodoText, filter, editingTodo, and editText
   - Define TodoFilter sealed trait with All, Active, and Completed objects
