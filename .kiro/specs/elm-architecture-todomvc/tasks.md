@@ -52,7 +52,7 @@
   - Add side effect messages for LoadTodos, SaveComplete, AutoSave, and NetworkError
   - _Requirements: 3.4, 4.1, 5.1, 6.1, 7.1, 8.1_
 
-- [ ] 8. Implement TodoMVC update function with QuickLens
+- [x] 8. Implement TodoMVC update function with QuickLens
   - Create TodoApp object extending App[TodoModel, TodoMsg]
   - Implement init method returning initial model and load command
   - Write update method handling AddTodo with input validation and storage command
