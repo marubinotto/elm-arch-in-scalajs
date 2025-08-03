@@ -264,7 +264,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
         ),
         label("for" -> "toggle-all")(text("Mark all as complete")),
         ul("class" -> "todo-list")(
-          model.filteredTodos.map(renderTodoItem(_, model)): _*
+          model.filteredTodos.map(renderTodoItem(_, model))*
         )
       )
     }
@@ -351,7 +351,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             } left")
         ),
         ul("class" -> "filters")(
-          TodoFilter.all.map(renderFilterButton(_, model.filter)): _*
+          TodoFilter.all.map(renderFilterButton(_, model.filter))*
         ),
         if (model.hasCompleted) {
           button(
