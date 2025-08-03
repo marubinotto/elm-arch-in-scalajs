@@ -82,7 +82,7 @@
   - Write unit tests for view function output with different model states
   - _Requirements: 3.1, 4.1, 5.1, 6.1, 7.1, 7.2, 7.3, 7.4, 7.5, 8.1, 8.2, 8.3, 8.4_
 
-- [ ] 11. Implement local storage integration for persistence
+- [x] 11. Implement local storage integration for persistence
   - Create LocalStorage object with getItem and setItem functions using IO
   - Add JSON serialization/deserialization for Todo and TodoModel types
   - Implement loadTodosFromStorage function returning IO[TodoMsg]
