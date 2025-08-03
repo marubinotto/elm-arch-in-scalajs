@@ -4,22 +4,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TodoMVC - Elm Architecture</title>
+  <title>TodoMVC - Elm Architecture in Scala.js</title>
+  <meta name="description" content="TodoMVC implementation using Elm Architecture pattern in Scala.js">
+
+  <!-- TodoMVC CSS from official CDN -->
   <link rel="stylesheet" href="https://unpkg.com/todomvc-app-css@2.4.1/index.css">
+
+  <!-- Custom CSS for enhanced functionality and accessibility -->
+  <link rel="stylesheet" href="styles/custom.css">
+
+  <!-- Additional custom styles for better integration -->
+  <style>
+    /* Ensure proper loading state */
+    .todoapp {
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .todoapp.loaded {
+      opacity: 1;
+    }
+
+    /* Loading indicator */
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+      font-size: 14px;
+      color: #777;
+    }
+
+    /* Error state styling */
+    .error {
+      color: #d9534f;
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    /* Accessibility improvements */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Focus indicators for better accessibility */
+    .todoapp input:focus,
+    .todoapp button:focus {
+      outline: 2px solid #4d90fe;
+      outline-offset: 2px;
+    }
+
+    /* High contrast mode support */
+    @media (prefers-contrast: high) {
+      .todoapp {
+        border: 2px solid;
+      }
+    }
+
+    /* Reduced motion support */
+    @media (prefers-reduced-motion: reduce) {
+      .todoapp {
+        transition: none;
+      }
+    }
+  </style>
 </head>
 
 <body>
-  <section class="todoapp">
-    <div id="app"></div>
+  <!-- Main TodoMVC application container -->
+  <section class="todoapp" id="todoapp" role="main" aria-label="Todo application">
+    <!-- Loading state -->
+    <div id="loading" class="loading" aria-live="polite">
+      <span>Loading TodoMVC...</span>
+    </div>
+
+    <!-- Error state -->
+    <div id="error" class="error" style="display: none;" role="alert" aria-live="assertive">
+      <p>Failed to load the application. Please refresh the page.</p>
+    </div>
+
+    <!-- Application mount point -->
+    <div id="app" style="display: none;"></div>
   </section>
 
-  <footer class="info">
+  <!-- TodoMVC footer with information and credits -->
+  <footer class="info" role="contentinfo">
     <p>Double-click to edit a todo</p>
-    <p>Created by <a href="#">Elm Architecture in Scala.js</a></p>
-    <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+    <p>Created by <a href="https://github.com/scala-js/scala-js" target="_blank" rel="noopener">Elm Architecture in
+        Scala.js</a></p>
+    <p>Part of <a href="http://todomvc.com" target="_blank" rel="noopener">TodoMVC</a></p>
   </footer>
 
-  <script type="module" src="./target/scala-3.3.1/elm-architecture-todomvc-fastopt/main.js"></script>
+  <!-- Screen reader announcements -->
+  <div id="announcements" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Application script -->
+  <script type="module" src="./target/scala-3.7.2/elm-architecture-todomvc-fastopt/main.js"></script>
+
+  <!-- Application initialization script -->
+  <script>
+    // Handle loading states and errors
+    window.addEventListener('DOMContentLoaded', function () {
+      const todoapp = document.getElementById('todoapp');
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
+      const app = document.getElementById('app');
+
+      // Set up error handling
+      window.addEventListener('error', function (e) {
+        console.error('Application error:', e.error);
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        app.style.display = 'none';
+      });
+
+      // Set up unhandled promise rejection handling
+      window.addEventListener('unhandledrejection', function (e) {
+        console.error('Unhandled promise rejection:', e.reason);
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        app.style.display = 'none';
+      });
+
+      // Function to show the app when loaded
+      window.showApp = function () {
+        loading.style.display = 'none';
+        error.style.display = 'none';
+        app.style.display = 'block';
+        todoapp.classList.add('loaded');
+
+        // Announce to screen readers
+        const announcements = document.getElementById('announcements');
+        announcements.textContent = 'TodoMVC application loaded successfully';
+      };
+
+      // Function to show error state
+      window.showError = function (message) {
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        app.style.display = 'none';
+
+        if (message) {
+          error.querySelector('p').textContent = message;
+        }
+
+        // Announce to screen readers
+        const announcements = document.getElementById('announcements');
+        announcements.textContent = 'Failed to load TodoMVC application';
+      };
+
+      // Timeout for loading
+      setTimeout(function () {
+        if (loading.style.display !== 'none') {
+          showError('Application took too long to load. Please refresh the page.');
+        }
+      }, 10000); // 10 second timeout
+    });
+  </script>
 </body>
 
 </html>

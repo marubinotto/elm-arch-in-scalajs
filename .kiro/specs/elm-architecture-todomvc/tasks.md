@@ -91,7 +91,7 @@
   - Write integration tests for storage operations
   - _Requirements: 3.4, 4.2, 4.3, 5.5, 6.2, 6.3_
 
-- [ ] 12. Add subscriptions for auto-save functionality
+- [x] 12. Add subscriptions for auto-save functionality
   - Implement subscriptions method in TodoApp for periodic auto-save
   - Create subscription processing in Runtime for interval-based events
   - Add auto-save logic that triggers every 30 seconds when todos exist
@@ -99,7 +99,7 @@
   - Write tests for subscription behavior and auto-save functionality
   - _Requirements: 3.4, 4.2, 4.3, 5.5, 6.2, 6.3_
 
-- [ ] 13. Create TodoMVC HTML structure and CSS integration
+- [x] 13. Create TodoMVC HTML structure and CSS integration
   - Create index.html with proper TodoMVC structure and CSS links
   - Add standard TodoMVC CSS styling from the official specification
   - Ensure HTML structure matches TodoMVC requirements for compatibility
@@ -107,7 +107,7 @@
   - Write tests to verify HTML structure compliance
   - _Requirements: 9.1, 9.2, 9.3_
 
-- [ ] 14. Implement main application entry point
+- [x] 14. Implement main application entry point
   - Create Main object with Scala.js main method
   - Initialize TodoApp and Runtime with proper error handling
   - Mount application to DOM container element
