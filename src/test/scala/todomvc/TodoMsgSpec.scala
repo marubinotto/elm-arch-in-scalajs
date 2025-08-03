@@ -43,8 +43,7 @@ class TodoMsgSpec extends AnyFreeSpec with Matchers {
       val loadMsg: TodoMsg = LoadTodos(List.empty)
       val saveMsg: TodoMsg = SaveComplete
       val autoSaveMsg: TodoMsg = AutoSave
-      val networkErrorMsg: TodoMsg = NetworkError("error")
-      val validationErrorMsg: TodoMsg = ValidationError("field", "message")
+      // Removed NetworkError and ValidationError as they are no longer part of TodoMsg
 
       // All messages should be of type TodoMsg
       List(
@@ -61,9 +60,7 @@ class TodoMsgSpec extends AnyFreeSpec with Matchers {
         clearMsg,
         loadMsg,
         saveMsg,
-        autoSaveMsg,
-        networkErrorMsg,
-        validationErrorMsg
+        autoSaveMsg
       ).foreach(_ shouldBe a[TodoMsg])
     }
 

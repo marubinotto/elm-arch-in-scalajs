@@ -31,32 +31,71 @@ object TodoApp extends App[TodoModel, TodoMsg] {
   def update(msg: TodoMsg, model: TodoModel): Update[TodoModel, TodoMsg] =
     msg match {
 
-      // Add a new todo with input validation
+      // Add a new todo with comprehensive validation
       case AddTodo(text) =>
-        val trimmedText = text.trim
-        if (trimmedText.nonEmpty) {
-          val newTodo = Todo.create(model.nextId, trimmedText)
-          val updatedModel = model
-            .modify(_.todos)
-            .using(_ :+ newTodo)
-            .modify(_.newTodoText)
-            .setTo("")
-          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
-        } else {
-          // Invalid input - no change to model, no command
-          Update(model, Cmd.none)
+        TodoValidation.validateTodoText(text) match {
+          case Right(validText) =>
+            try {
+              val newId = model.nextId
+              TodoValidation.validateTodoId(newId) match {
+                case Right(validId) =>
+                  val newTodo = Todo.create(validId, validText)
+                  val updatedModel = TodoValidation.safeUpdateModel(
+                    model,
+                    _.modify(_.todos)
+                      .using(_ :+ newTodo)
+                      .modify(_.newTodoText)
+                      .setTo(""),
+                    model
+                  )
+                  Update(
+                    updatedModel,
+                    Cmd.task(saveTodosToStorage(updatedModel.todos))
+                  )
+                case Left(error) =>
+                  org.scalajs.dom.console
+                    .error(s"Invalid todo ID: ${error.userMessage}")
+                  Update(model, Cmd.none)
+              }
+            } catch {
+              case error: Throwable =>
+                org.scalajs.dom.console
+                  .error(s"Failed to add todo: ${error.getMessage}")
+                Update(model, Cmd.none)
+            }
+          case Left(error) =>
+            org.scalajs.dom.console
+              .warn(s"Invalid todo text: ${error.userMessage}")
+            Update(model, Cmd.none)
         }
 
-      // Toggle the completed status of a todo
+      // Toggle the completed status of a todo with validation
       case ToggleTodo(id) =>
-        val updatedModel = model
-          .modify(_.todos.eachWhere(_.id == id).completed)
-          .using(!_)
-        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        TodoValidation.validateTodoExists(id, model) match {
+          case Right(_) =>
+            val updatedModel = TodoValidation.safeUpdateModel(
+              model,
+              _.modify(_.todos.eachWhere(_.id == id).completed).using(!_),
+              model
+            )
+            Update(
+              updatedModel,
+              Cmd.task(saveTodosToStorage(updatedModel.todos))
+            )
+          case Left(error) =>
+            org.scalajs.dom.console
+              .warn(s"Cannot toggle todo: ${error.userMessage}")
+            Update(model, Cmd.none)
+        }
 
-      // Update the new todo input text in real-time
+      // Update the new todo input text with sanitization
       case UpdateNewTodoText(text) =>
-        val updatedModel = model.modify(_.newTodoText).setTo(text)
+        val sanitizedText = TodoValidation.sanitizeInput(text)
+        val updatedModel = TodoValidation.safeUpdateModel(
+          model,
+          _.modify(_.newTodoText).setTo(sanitizedText),
+          model
+        )
         Update(updatedModel, Cmd.none)
 
       // Set the current filter for todo visibility
@@ -64,61 +103,113 @@ object TodoApp extends App[TodoModel, TodoMsg] {
         val updatedModel = model.modify(_.filter).setTo(filter)
         Update(updatedModel, Cmd.none)
 
-      // Load todos from storage (typically on app initialization)
+      // Load todos from storage with validation
       case LoadTodos(todos) =>
-        val updatedModel = model.modify(_.todos).setTo(todos)
-        Update(updatedModel, Cmd.none)
+        TodoValidation.validateTodoList(todos) match {
+          case Right(validTodos) =>
+            val updatedModel = TodoValidation.safeUpdateModel(
+              model,
+              _.modify(_.todos).setTo(validTodos),
+              model
+            )
+            Update(updatedModel, Cmd.none)
+          case Left(error) =>
+            org.scalajs.dom.console
+              .error(s"Invalid todos loaded from storage: ${error.userMessage}")
+            // Use empty list as fallback
+            val updatedModel = TodoValidation.safeUpdateModel(
+              model,
+              _.modify(_.todos).setTo(List.empty),
+              model
+            )
+            Update(updatedModel, Cmd.none)
+        }
 
       // Handle save completion (no model change needed)
       case SaveComplete =>
         Update(model, Cmd.none)
 
-      // Delete a todo by ID
+      // Delete a todo by ID with validation
       case DeleteTodo(id) =>
-        val updatedModel = model
-          .modify(_.todos)
-          .using(_.filterNot(_.id == id))
-        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
-
-      // Enter edit mode for a specific todo
-      case EditTodo(id) =>
-        model.getTodo(id) match {
-          case Some(todo) =>
-            val updatedModel = model
-              .modify(_.editingTodo)
-              .setTo(Some(id))
-              .modify(_.editText)
-              .setTo(todo.text)
-              .modify(_.todos.eachWhere(_.id == id).editing)
-              .setTo(true)
-            Update(updatedModel, Cmd.none)
-          case None =>
-            // Todo not found - no change
+        TodoValidation.validateTodoExists(id, model) match {
+          case Right(_) =>
+            val updatedModel = TodoValidation.safeUpdateModel(
+              model,
+              _.modify(_.todos).using(_.filterNot(_.id == id)),
+              model
+            )
+            Update(
+              updatedModel,
+              Cmd.task(saveTodosToStorage(updatedModel.todos))
+            )
+          case Left(error) =>
+            org.scalajs.dom.console
+              .warn(s"Cannot delete todo: ${error.userMessage}")
             Update(model, Cmd.none)
         }
 
-      // Update a todo's text with validation
+      // Enter edit mode for a specific todo with validation
+      case EditTodo(id) =>
+        TodoValidation.validateTodoExists(id, model) match {
+          case Right(todo) =>
+            val updatedModel = TodoValidation.safeUpdateModel(
+              model,
+              _.modify(_.editingTodo)
+                .setTo(Some(id))
+                .modify(_.editText)
+                .setTo(todo.text)
+                .modify(_.todos.eachWhere(_.id == id).editing)
+                .setTo(true),
+              model
+            )
+            Update(updatedModel, Cmd.none)
+          case Left(error) =>
+            org.scalajs.dom.console
+              .warn(s"Cannot edit todo: ${error.userMessage}")
+            Update(model, Cmd.none)
+        }
+
+      // Update a todo's text with comprehensive validation
       case UpdateTodo(id, text) =>
-        val trimmedText = text.trim
-        if (trimmedText.nonEmpty) {
-          val updatedModel = model
-            .modify(_.todos.eachWhere(_.id == id))
-            .using(_.copy(text = trimmedText, editing = false))
-            .modify(_.editingTodo)
-            .setTo(None)
-            .modify(_.editText)
-            .setTo("")
-          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
-        } else {
-          // Empty text - delete the todo instead
-          val updatedModel = model
-            .modify(_.todos)
-            .using(_.filterNot(_.id == id))
-            .modify(_.editingTodo)
-            .setTo(None)
-            .modify(_.editText)
-            .setTo("")
-          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        TodoValidation.validateTodoExists(id, model) match {
+          case Right(_) =>
+            TodoValidation.validateTodoText(text) match {
+              case Right(validText) =>
+                val updatedModel = TodoValidation.safeUpdateModel(
+                  model,
+                  _.modify(_.todos.eachWhere(_.id == id))
+                    .using(_.copy(text = validText, editing = false))
+                    .modify(_.editingTodo)
+                    .setTo(None)
+                    .modify(_.editText)
+                    .setTo(""),
+                  model
+                )
+                Update(
+                  updatedModel,
+                  Cmd.task(saveTodosToStorage(updatedModel.todos))
+                )
+              case Left(_) =>
+                // Empty or invalid text - delete the todo instead
+                val updatedModel = TodoValidation.safeUpdateModel(
+                  model,
+                  _.modify(_.todos)
+                    .using(_.filterNot(_.id == id))
+                    .modify(_.editingTodo)
+                    .setTo(None)
+                    .modify(_.editText)
+                    .setTo(""),
+                  model
+                )
+                Update(
+                  updatedModel,
+                  Cmd.task(saveTodosToStorage(updatedModel.todos))
+                )
+            }
+          case Left(error) =>
+            org.scalajs.dom.console
+              .warn(s"Cannot update todo: ${error.userMessage}")
+            Update(model, Cmd.none)
         }
 
       // Cancel editing without saving changes
@@ -132,41 +223,49 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           .setTo("")
         Update(updatedModel, Cmd.none)
 
-      // Update the edit input text in real-time
+      // Update the edit input text with sanitization
       case UpdateEditText(text) =>
-        val updatedModel = model.modify(_.editText).setTo(text)
+        val sanitizedText = TodoValidation.sanitizeInput(text)
+        val updatedModel = TodoValidation.safeUpdateModel(
+          model,
+          _.modify(_.editText).setTo(sanitizedText),
+          model
+        )
         Update(updatedModel, Cmd.none)
 
       // Toggle all todos between completed and not completed
       case ToggleAll =>
-        val shouldComplete = !model.allCompleted
-        val updatedModel = model
-          .modify(_.todos.each.completed)
-          .setTo(shouldComplete)
-        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        if (model.todos.nonEmpty) {
+          val shouldComplete = !model.allCompleted
+          val updatedModel = TodoValidation.safeUpdateModel(
+            model,
+            _.modify(_.todos.each.completed).setTo(shouldComplete),
+            model
+          )
+          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        } else {
+          // No todos to toggle
+          Update(model, Cmd.none)
+        }
 
       // Remove all completed todos
       case ClearCompleted =>
-        val updatedModel = model
-          .modify(_.todos)
-          .using(_.filterNot(_.completed))
-        Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        if (model.hasCompleted) {
+          val updatedModel = TodoValidation.safeUpdateModel(
+            model,
+            _.modify(_.todos).using(_.filterNot(_.completed)),
+            model
+          )
+          Update(updatedModel, Cmd.task(saveTodosToStorage(updatedModel.todos)))
+        } else {
+          // No completed todos to clear
+          Update(model, Cmd.none)
+        }
 
       // Trigger auto-save operation
       case AutoSave =>
         Update(model, Cmd.task(saveTodosToStorage(model.todos)))
 
-      // Handle network or storage errors
-      case NetworkError(error) =>
-        // For now, just log the error and continue
-        // In a real app, you might show user feedback
-        Update(model, Cmd.none)
-
-      // Handle validation errors
-      case ValidationError(field, message) =>
-        // For now, just log the error and continue
-        // In a real app, you might show user feedback
-        Update(model, Cmd.none)
     }
 
   /** Render the current model as a virtual DOM tree
@@ -507,7 +606,9 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           org.scalajs.dom.console
             .error(s"Failed to save todos: ${error.getMessage}")
         ) *>
-          IO.pure(NetworkError(s"Storage error: ${error.getMessage}"))
+          IO.pure(
+            SaveComplete
+          ) // Just complete successfully even on error for graceful degradation
       }
   }
 }

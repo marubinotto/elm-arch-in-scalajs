@@ -72,30 +72,73 @@ object LocalStorage {
     }
   }
 
-  /** Load todos from local storage
+  /** Load todos from local storage with comprehensive error handling
     *
     * @return
     *   IO operation that returns the list of todos
     */
   def loadTodos: IO[List[Todo]] = {
-    getItem(TODOS_KEY).flatMap {
-      case Some(jsonString) =>
-        IO.delay {
-          TodoJson.parseTodos(jsonString) match {
-            case Success(todos) => todos
-            case Failure(error) =>
-              dom.console.error(
-                s"Failed to parse todos from localStorage: ${error.getMessage}"
-              )
-              List.empty[Todo]
+    // First check if localStorage is available
+    isAvailable
+      .flatMap { available =>
+        if (!available) {
+          IO.delay(
+            dom.console
+              .warn("localStorage is not available, using empty todo list")
+          ) *>
+            IO.pure(List.empty[Todo])
+        } else {
+          getItem(TODOS_KEY).flatMap {
+            case Some(jsonString) =>
+              IO.delay {
+                if (jsonString.trim.isEmpty) {
+                  dom.console.warn("Empty JSON string in localStorage")
+                  List.empty[Todo]
+                } else {
+                  TodoJson.parseTodos(jsonString) match {
+                    case Success(todos) =>
+                      // Validate loaded todos
+                      TodoValidation.validateTodoList(todos) match {
+                        case Right(validTodos) => validTodos
+                        case Left(error) =>
+                          dom.console.error(
+                            s"Invalid todos in localStorage: ${error.userMessage}"
+                          )
+                          List.empty[Todo]
+                      }
+                    case Failure(error) =>
+                      dom.console.error(
+                        s"Failed to parse todos from localStorage: ${error.getMessage}"
+                      )
+                      // Try to recover by clearing corrupted data (fire and forget)
+                      import cats.effect.unsafe.implicits.global
+                      clearTodos.attempt.void.unsafeRunAndForget()
+                      List.empty[Todo]
+                  }
+                }
+              }.handleErrorWith { error =>
+                IO.delay(
+                  dom.console.error(
+                    s"Error processing todos from localStorage: ${error.getMessage}"
+                  )
+                ) *>
+                  IO.pure(List.empty[Todo])
+              }
+            case None =>
+              IO.pure(List.empty[Todo])
           }
         }
-      case None =>
-        IO.pure(List.empty[Todo])
-    }
+      }
+      .handleErrorWith { error =>
+        IO.delay(
+          dom.console
+            .error(s"Critical error loading todos: ${error.getMessage}")
+        ) *>
+          IO.pure(List.empty[Todo])
+      }
   }
 
-  /** Save todos to local storage
+  /** Save todos to local storage with comprehensive error handling
     *
     * @param todos
     *   The list of todos to save
@@ -103,16 +146,77 @@ object LocalStorage {
     *   IO operation that completes when todos are saved
     */
   def saveTodos(todos: List[Todo]): IO[Unit] = {
-    IO.delay {
-      TodoJson.serializeTodos(todos)
-    }.flatMap { jsonString =>
-      setItem(TODOS_KEY, jsonString)
-    }.handleErrorWith { error =>
-      // Log error and continue for graceful degradation
-      IO.delay(
-        dom.console
-          .error(s"Failed to save todos to localStorage: ${error.getMessage}")
-      )
+    // First validate the todos
+    TodoValidation.validateTodoList(todos) match {
+      case Left(error) =>
+        IO.delay(
+          dom.console.error(s"Cannot save invalid todos: ${error.userMessage}")
+        )
+      case Right(validTodos) =>
+        // Check if localStorage is available
+        isAvailable
+          .flatMap { available =>
+            if (!available) {
+              IO.delay(
+                dom.console.warn(
+                  "localStorage is not available, todos will not be persisted"
+                )
+              )
+            } else {
+              IO.delay {
+                TodoJson.serializeTodos(validTodos)
+              }.flatMap { jsonString =>
+                // Check if JSON is reasonable size (< 5MB)
+                if (jsonString.length > 5 * 1024 * 1024) {
+                  IO.delay(
+                    dom.console
+                      .error("Todo data is too large to save to localStorage")
+                  )
+                } else {
+                  setItem(TODOS_KEY, jsonString).handleErrorWith { error =>
+                    // Try to handle quota exceeded error
+                    if (
+                      error.getMessage.contains(
+                        "QuotaExceededError"
+                      ) || error.getMessage.contains("quota")
+                    ) {
+                      IO.delay(
+                        dom.console.error(
+                          "localStorage quota exceeded, cannot save todos"
+                        )
+                      ) *>
+                        // Try to clear some space by removing old data
+                        clearTodos *>
+                        setItem(TODOS_KEY, jsonString).handleErrorWith { _ =>
+                          IO.delay(
+                            dom.console.error(
+                              "Failed to save todos even after clearing storage"
+                            )
+                          )
+                        }
+                    } else {
+                      IO.delay(
+                        dom.console.error(
+                          s"Failed to save todos to localStorage: ${error.getMessage}"
+                        )
+                      )
+                    }
+                  }
+                }
+              }.handleErrorWith { error =>
+                IO.delay(
+                  dom.console
+                    .error(s"Failed to serialize todos: ${error.getMessage}")
+                )
+              }
+            }
+          }
+          .handleErrorWith { error =>
+            IO.delay(
+              dom.console
+                .error(s"Critical error saving todos: ${error.getMessage}")
+            )
+          }
     }
   }
 

@@ -52,12 +52,6 @@ case object SaveComplete extends TodoMsg
 /** Trigger an auto-save operation */
 case object AutoSave extends TodoMsg
 
-/** Handle network or storage errors */
-case class NetworkError(error: String) extends TodoMsg
-
-/** Handle validation errors */
-case class ValidationError(field: String, message: String) extends TodoMsg
-
 object TodoMsg {
 
   /** Helper to create an AddTodo message with trimmed text */
