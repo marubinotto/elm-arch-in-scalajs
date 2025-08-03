@@ -132,4 +132,12 @@ object Html {
   def a(attrs: (String, String)*)(children: VNode*): VNode = {
     VElement("a", attrs.toMap, Map.empty, children.toList)
   }
+
+  /** Create an a element with attributes and events
+    */
+  def a(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+      children: VNode*
+  ): VNode = {
+    VElement("a", attrs, events, children.toList)
+  }
 }

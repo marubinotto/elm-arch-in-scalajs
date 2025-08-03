@@ -62,7 +62,7 @@
   - Write unit tests for each update case with various model states
   - _Requirements: 3.1, 3.2, 3.3, 4.2, 4.3, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 9. Implement remaining TodoMVC update cases
+- [x] 9. Implement remaining TodoMVC update cases
   - Add DeleteTodo case using QuickLens to remove todos by ID
   - Implement EditTodo case to enter edit mode for specific todo
   - Create UpdateTodo case with validation and QuickLens for text updates

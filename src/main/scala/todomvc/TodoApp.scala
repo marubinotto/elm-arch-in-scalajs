@@ -177,8 +177,14 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     *   Virtual DOM representation of the UI
     */
   def view(model: TodoModel): VNode = {
-    // Placeholder implementation - will be implemented in task 10
-    vdom.VText("TodoMVC App - View not yet implemented")
+    import vdom.Html._
+    import vdom.Events._
+
+    section("class" -> "todoapp")(
+      renderHeader(model),
+      renderMain(model),
+      renderFooter(model)
+    )
   }
 
   /** Define subscriptions for external events
@@ -198,6 +204,251 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     } else {
       Sub.none
     }
+  }
+
+  // Private helper methods for rendering different sections
+
+  /** Render the header section with new todo input
+    *
+    * @param model
+    *   The current model state
+    * @return
+    *   Virtual DOM node for the header
+    */
+  private def renderHeader(model: TodoModel): VNode = {
+    import vdom.Html._
+
+    header("class" -> "header")(
+      h1()(text("todos")),
+      input(
+        Map(
+          "class" -> "new-todo",
+          "placeholder" -> "What needs to be done?",
+          "value" -> model.newTodoText,
+          "autofocus" -> "true"
+        ),
+        Map(
+          "input" -> onInputText(text =>
+            dispatchMessage(UpdateNewTodoText(text))
+          ),
+          "keydown" -> onEnterKey(dispatchMessage(AddTodo(model.newTodoText)))
+        )
+      )
+    )
+  }
+
+  /** Render the main section with todo list
+    *
+    * @param model
+    *   The current model state
+    * @return
+    *   Virtual DOM node for the main section
+    */
+  private def renderMain(model: TodoModel): VNode = {
+    import vdom.Html._
+
+    if (model.todos.isEmpty) {
+      text("") // Empty node when no todos
+    } else {
+      section("class" -> "main")(
+        input(
+          Map(
+            "id" -> "toggle-all",
+            "class" -> "toggle-all",
+            "type" -> "checkbox"
+          ) ++ (if (model.allCompleted) Map("checked" -> "checked")
+                else Map.empty),
+          Map(
+            "change" -> dispatchMessage(ToggleAll)
+          )
+        ),
+        label("for" -> "toggle-all")(text("Mark all as complete")),
+        ul("class" -> "todo-list")(
+          model.filteredTodos.map(renderTodoItem(_, model)): _*
+        )
+      )
+    }
+  }
+
+  /** Render an individual todo item
+    *
+    * @param todo
+    *   The todo item to render
+    * @param model
+    *   The current model state
+    * @return
+    *   Virtual DOM node for the todo item
+    */
+  private def renderTodoItem(todo: Todo, model: TodoModel): VNode = {
+    import vdom.Html._
+
+    val classes = List(
+      if (todo.completed) Some("completed") else None,
+      if (model.isEditing(todo.id)) Some("editing") else None
+    ).flatten.mkString(" ")
+
+    li("class" -> classes)(
+      div("class" -> "view")(
+        input(
+          Map(
+            "class" -> "toggle",
+            "type" -> "checkbox"
+          ) ++ (if (todo.completed) Map("checked" -> "checked") else Map.empty),
+          Map(
+            "change" -> dispatchMessage(ToggleTodo(todo.id))
+          )
+        ),
+        label(
+          Map.empty,
+          Map(
+            "dblclick" -> dispatchMessage(EditTodo(todo.id))
+          )
+        )(text(todo.text)),
+        button(
+          Map("class" -> "destroy"),
+          Map(
+            "click" -> dispatchMessage(DeleteTodo(todo.id))
+          )
+        )()
+      ),
+      if (model.isEditing(todo.id)) {
+        input(
+          Map(
+            "class" -> "edit",
+            "value" -> model.editText
+          ),
+          Map(
+            "input" -> onInputText(text =>
+              dispatchMessage(UpdateEditText(text))
+            ),
+            "keydown" -> onEditKeyDown(todo.id, model.editText),
+            "blur" -> dispatchMessage(UpdateTodo(todo.id, model.editText))
+          )
+        )
+      } else {
+        text("") // Empty node when not editing
+      }
+    )
+  }
+
+  /** Render the footer section with filters and stats
+    *
+    * @param model
+    *   The current model state
+    * @return
+    *   Virtual DOM node for the footer
+    */
+  private def renderFooter(model: TodoModel): VNode = {
+    import vdom.Html._
+
+    if (model.todos.isEmpty) {
+      text("") // Empty node when no todos
+    } else {
+      footer("class" -> "footer")(
+        span("class" -> "todo-count")(
+          text(s"${model.activeCount} ${
+              if (model.activeCount == 1) "item" else "items"
+            } left")
+        ),
+        ul("class" -> "filters")(
+          TodoFilter.all.map(renderFilterButton(_, model.filter)): _*
+        ),
+        if (model.hasCompleted) {
+          button(
+            Map("class" -> "clear-completed"),
+            Map(
+              "click" -> dispatchMessage(ClearCompleted)
+            )
+          )(text("Clear completed"))
+        } else {
+          text("") // Empty node when no completed todos
+        }
+      )
+    }
+  }
+
+  /** Render a filter button
+    *
+    * @param filter
+    *   The filter option
+    * @param currentFilter
+    *   The currently selected filter
+    * @return
+    *   Virtual DOM node for the filter button
+    */
+  private def renderFilterButton(
+      filter: TodoFilter,
+      currentFilter: TodoFilter
+  ): VNode = {
+    import vdom.Html._
+
+    li()(
+      a(
+        Map(
+          "href" -> s"#/${filter.displayName.toLowerCase}"
+        ) ++ (if (filter == currentFilter) Map("class" -> "selected")
+              else Map.empty),
+        Map(
+          "click" -> dispatchMessage(SetFilter(filter))
+        )
+      )(text(filter.displayName))
+    )
+  }
+
+  // Private helper methods for event handling and message dispatching
+
+  /** Create a message dispatch action
+    *
+    * @param msg
+    *   The message to dispatch
+    * @return
+    *   IO action that dispatches the message
+    */
+  private def dispatchMessage(msg: TodoMsg): IO[Unit] = {
+    // This will be connected to the runtime's dispatch method
+    // For now, this is a placeholder that will be enhanced when integrated with the runtime
+    IO.unit
+  }
+
+  /** Create an input event handler that extracts text value
+    *
+    * @param handler
+    *   Function to handle the input text
+    * @return
+    *   IO action for the input event
+    */
+  private def onInputText(handler: String => IO[Unit]): IO[Unit] = {
+    // This will be properly implemented when integrated with the DOM
+    // For now, this is a placeholder
+    IO.unit
+  }
+
+  /** Create an Enter key event handler
+    *
+    * @param action
+    *   Action to perform when Enter is pressed
+    * @return
+    *   IO action for the keydown event
+    */
+  private def onEnterKey(action: IO[Unit]): IO[Unit] = {
+    // This will be properly implemented when integrated with the DOM
+    // For now, this is a placeholder that simulates Enter key (keyCode 13)
+    IO.unit
+  }
+
+  /** Create a keydown event handler for edit mode
+    *
+    * @param todoId
+    *   The ID of the todo being edited
+    * @param currentText
+    *   The current text in the edit field
+    * @return
+    *   IO action for the keydown event
+    */
+  private def onEditKeyDown(todoId: Int, currentText: String): IO[Unit] = {
+    // This will handle Enter (save) and Escape (cancel) keys
+    // For now, this is a placeholder
+    IO.unit
   }
 
   // Private helper functions for side effects
