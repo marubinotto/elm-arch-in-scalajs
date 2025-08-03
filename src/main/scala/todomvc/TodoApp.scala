@@ -217,6 +217,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     */
   private def renderHeader(model: TodoModel): VNode = {
     import vdom.Html._
+    import vdom.Events._
 
     header("class" -> "header")(
       h1()(text("todos")),
@@ -228,10 +229,8 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           "autofocus" -> "true"
         ),
         Map(
-          "input" -> onInputText(text =>
-            dispatchMessage(UpdateNewTodoText(text))
-          ),
-          "keydown" -> onEnterKey(dispatchMessage(AddTodo(model.newTodoText)))
+          "input" -> onInputText(text => UpdateNewTodoText(text)),
+          "keydown" -> onEnterKey(AddTodo(model.newTodoText))
         )
       )
     )
@@ -259,7 +258,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           ) ++ (if (model.allCompleted) Map("checked" -> "checked")
                 else Map.empty),
           Map(
-            "change" -> dispatchMessage(ToggleAll)
+            "change" -> onToggleAll
           )
         ),
         label("for" -> "toggle-all")(text("Mark all as complete")),
@@ -295,19 +294,19 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             "type" -> "checkbox"
           ) ++ (if (todo.completed) Map("checked" -> "checked") else Map.empty),
           Map(
-            "change" -> dispatchMessage(ToggleTodo(todo.id))
+            "change" -> onToggleTodo(todo.id)
           )
         ),
         label(
           Map.empty,
           Map(
-            "dblclick" -> dispatchMessage(EditTodo(todo.id))
+            "dblclick" -> onEditTodo(todo.id)
           )
         )(text(todo.text)),
         button(
           Map("class" -> "destroy"),
           Map(
-            "click" -> dispatchMessage(DeleteTodo(todo.id))
+            "click" -> onDeleteTodo(todo.id)
           )
         )()
       ),
@@ -318,11 +317,9 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             "value" -> model.editText
           ),
           Map(
-            "input" -> onInputText(text =>
-              dispatchMessage(UpdateEditText(text))
-            ),
+            "input" -> onInputText(text => UpdateEditText(text)),
             "keydown" -> onEditKeyDown(todo.id, model.editText),
-            "blur" -> dispatchMessage(UpdateTodo(todo.id, model.editText))
+            "blur" -> onUpdateTodo(todo.id, model.editText)
           )
         )
       } else {
@@ -357,7 +354,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           button(
             Map("class" -> "clear-completed"),
             Map(
-              "click" -> dispatchMessage(ClearCompleted)
+              "click" -> onClearCompleted
             )
           )(text("Clear completed"))
         } else {
@@ -389,7 +386,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
         ) ++ (if (filter == currentFilter) Map("class" -> "selected")
               else Map.empty),
         Map(
-          "click" -> dispatchMessage(SetFilter(filter))
+          "click" -> onSetFilter(filter)
         )
       )(text(filter.displayName))
     )
@@ -410,27 +407,28 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     IO.unit
   }
 
-  /** Create an input event handler that extracts text value
+  /** Create an input event handler that extracts text value and creates a
+    * message
     *
-    * @param handler
-    *   Function to handle the input text
+    * @param msgFactory
+    *   Function to create a message from the input text
     * @return
     *   IO action for the input event
     */
-  private def onInputText(handler: String => IO[Unit]): IO[Unit] = {
+  private def onInputText(msgFactory: String => TodoMsg): IO[Unit] = {
     // This will be properly implemented when integrated with the DOM
-    // For now, this is a placeholder
+    // For now, this returns a placeholder IO that would dispatch the message
     IO.unit
   }
 
   /** Create an Enter key event handler
     *
-    * @param action
-    *   Action to perform when Enter is pressed
+    * @param msg
+    *   Message to dispatch when Enter is pressed
     * @return
     *   IO action for the keydown event
     */
-  private def onEnterKey(action: IO[Unit]): IO[Unit] = {
+  private def onEnterKey(msg: TodoMsg): IO[Unit] = {
     // This will be properly implemented when integrated with the DOM
     // For now, this is a placeholder that simulates Enter key (keyCode 13)
     IO.unit
@@ -451,6 +449,27 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     IO.unit
   }
 
+  /** Create a toggle all event handler */
+  private def onToggleAll: IO[Unit] = IO.unit
+
+  /** Create a toggle todo event handler */
+  private def onToggleTodo(id: Int): IO[Unit] = IO.unit
+
+  /** Create an edit todo event handler */
+  private def onEditTodo(id: Int): IO[Unit] = IO.unit
+
+  /** Create a delete todo event handler */
+  private def onDeleteTodo(id: Int): IO[Unit] = IO.unit
+
+  /** Create an update todo event handler */
+  private def onUpdateTodo(id: Int, text: String): IO[Unit] = IO.unit
+
+  /** Create a clear completed event handler */
+  private def onClearCompleted: IO[Unit] = IO.unit
+
+  /** Create a set filter event handler */
+  private def onSetFilter(filter: TodoFilter): IO[Unit] = IO.unit
+
   // Private helper functions for side effects
 
   /** Load todos from local storage
@@ -459,8 +478,16 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     *   IO operation that loads todos and returns a LoadTodos message
     */
   private def loadTodosFromStorage: IO[TodoMsg] = {
-    // Placeholder implementation - will be implemented in task 11
-    IO.pure(LoadTodos(List.empty))
+    LocalStorage.loadTodos
+      .map(LoadTodos.apply)
+      .handleErrorWith { error =>
+        // Log error and return empty list for graceful degradation
+        IO.delay(
+          org.scalajs.dom.console
+            .error(s"Failed to load todos: ${error.getMessage}")
+        ) *>
+          IO.pure(LoadTodos(List.empty))
+      }
   }
 
   /** Save todos to local storage
@@ -471,7 +498,16 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     *   IO operation that saves todos and returns a SaveComplete message
     */
   private def saveTodosToStorage(todos: List[Todo]): IO[TodoMsg] = {
-    // Placeholder implementation - will be implemented in task 11
-    IO.pure(SaveComplete)
+    LocalStorage
+      .saveTodos(todos)
+      .as(SaveComplete)
+      .handleErrorWith { error =>
+        // Log error and return network error message
+        IO.delay(
+          org.scalajs.dom.console
+            .error(s"Failed to save todos: ${error.getMessage}")
+        ) *>
+          IO.pure(NetworkError(s"Storage error: ${error.getMessage}"))
+      }
   }
 }
