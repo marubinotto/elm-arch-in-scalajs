@@ -6,6 +6,8 @@ A TodoMVC implementation using the Elm Architecture pattern in Scala.js with Cat
 
 ```
 ├── build.sbt                          # SBT build configuration
+├── package.json                       # Node.js dependencies and scripts
+├── vite.config.js                     # Vite configuration
 ├── project/
 │   ├── build.properties              # SBT version
 │   └── plugins.sbt                   # Scala.js plugin
@@ -25,22 +27,46 @@ A TodoMVC implementation using the Elm Architecture pattern in Scala.js with Cat
 
 ## Dependencies
 
+### Scala Dependencies
 - **Cats Effect 3.5.2**: Functional programming with IO for side effects
 - **QuickLens 1.9.6**: Immutable data transformations
 - **Scala.js DOM 2.4.0**: DOM bindings for Scala.js
 - **ScalaTest 3.2.17**: Testing framework
 - **ScalaCheck**: Property-based testing
 
+### Development Dependencies
+- **Vite**: Fast development server and build tool
+- **@scala-js/vite-plugin-scalajs**: Vite plugin for Scala.js integration
+
 ## Getting Started
 
-1. Install SBT (Scala Build Tool)
-2. Run `sbt fastOptJS` to compile the project
-3. Open `index.html` in a web browser
+### Prerequisites
+- SBT (Scala Build Tool)
+- Node.js and npm
+
+### Setup and Run
+1. **Install Node.js dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
+
+3. **Open your browser** to http://localhost:3000 (opens automatically)
 
 ## Development
 
+- `npm run dev` - Start development server with hot reloading
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `sbt test` - Run tests
+
+### Alternative SBT-only Development
+
 - `sbt fastOptJS` - Compile for development (fast compilation)
 - `sbt fullOptJS` - Compile for production (optimized)
-- `sbt test` - Run tests
 - `sbt ~fastOptJS` - Watch mode for development
 
