@@ -81,7 +81,7 @@
 
 <body>
   <!-- Main TodoMVC application container -->
-  <section class="todoapp" id="todoapp" role="main" aria-label="Todo application">
+  <div id="container">
     <!-- Loading state -->
     <div id="loading" class="loading" aria-live="polite">
       <span>Loading TodoMVC...</span>
@@ -93,8 +93,8 @@
     </div>
 
     <!-- Application mount point -->
-    <div id="app" style="display: none;"></div>
-  </section>
+    <section class="todoapp" id="app" role="main" aria-label="Todo application" style="display: none;"></section>
+  </div>
 
   <!-- TodoMVC footer with information and credits -->
   <footer class="info" role="contentinfo">
@@ -114,7 +114,6 @@
   <script>
     // Handle loading states and errors
     window.addEventListener('DOMContentLoaded', function () {
-      const todoapp = document.getElementById('todoapp');
       const loading = document.getElementById('loading');
       const error = document.getElementById('error');
       const app = document.getElementById('app');
@@ -140,7 +139,7 @@
         loading.style.display = 'none';
         error.style.display = 'none';
         app.style.display = 'block';
-        todoapp.classList.add('loaded');
+        app.classList.add('loaded');
 
         // Announce to screen readers
         const announcements = document.getElementById('announcements');

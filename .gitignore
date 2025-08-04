@@ -65,3 +65,6 @@ fullopt/
 # OS generated files
 Thumbs.db
 ehthumbs.db
+
+test-results/
+playwright-report/

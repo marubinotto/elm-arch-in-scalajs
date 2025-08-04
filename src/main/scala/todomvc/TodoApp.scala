@@ -281,9 +281,9 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     import vdom.Html._
     import vdom.Events._
 
-    // The HTML already has the .todoapp wrapper, so we just render the content
-    // We use a fragment-like div to hold all the TodoMVC sections
-    div()(
+    // Since we can't create fragments, we'll create a div that acts as a container
+    // but we'll make sure the CSS and structure work correctly
+    div("style" -> "display: contents;")(
       renderHeader(model),
       renderMain(model),
       renderFooter(model)
@@ -558,6 +558,8 @@ object TodoApp extends App[TodoModel, TodoMsg] {
       org.scalajs.dom.console.log(
         s"[TodoApp] Attaching event listeners, todos count: ${model.todos.length}"
       )
+      org.scalajs.dom.console
+        .log(s"[TodoApp] Container: ${container.tagName}, id: ${container.id}")
 
       // Remove existing event listeners first
       // (In a real implementation, we'd track these properly)
@@ -565,6 +567,8 @@ object TodoApp extends App[TodoModel, TodoMsg] {
       // New todo input
       val newTodoInput =
         container.querySelector(".new-todo").asInstanceOf[HTMLInputElement]
+      org.scalajs.dom.console
+        .log(s"[TodoApp] Found new todo input: ${newTodoInput != null}")
       if (newTodoInput != null) {
         // Clear existing listeners by cloning the element
         val newInput =

@@ -126,10 +126,55 @@
   - _Requirements: 9.4_
 
 - [ ] 16. Create comprehensive test suite
-  - Write property-based tests for model invariants (unique IDs, valid states)
-  - Add integration tests for complete user workflows (add, edit, delete, filter)
-  - Create performance tests for large todo lists and frequent updates
-  - Implement browser compatibility tests for DOM operations
-  - Add end-to-end tests simulating real user interactions
-  - Write tests for concurrent operations and race conditions
+  - [x] Write property-based tests for model invariants (unique IDs, valid states)
+  - [ ] Add integration tests for complete user workflows (add, edit, delete, filter)
+  - [ ] Create performance tests for large todo lists and frequent updates
+  - [ ] Implement browser compatibility tests for DOM operations
+  - [ ] **Fix VDom event handling system to make E2E tests pass** (CRITICAL)
+    - **Root cause**: VDom event system is incomplete - Events.scala contains placeholder implementations
+    - **Impact**: 51/60 E2E tests failing because user interactions don't trigger messages
+    - **Solution**: Complete the VDom event system with real DOM event capture and value extraction
+  - [ ] Write tests for concurrent operations and race conditions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4_
+
+- [ ] 17. Fix VDom event system for E2E test compatibility
+- [ ] 17.1 Complete Events.scala implementation with real DOM event handling
+  - Replace placeholder onInput handler with real DOM event capture
+  - Implement proper value extraction from input events using event.target.value
+  - Replace placeholder onKeyDown handler with real keyCode detection
+  - Add proper event preventDefault and stopPropagation handling
+  - Ensure all event handlers properly dispatch messages to the Runtime
+  - _Requirements: 2.4, 9.4_
+
+- [ ] 17.2 Fix VDom.attachEventListeners to work with message dispatching
+  - Modify attachEventListeners to accept message dispatch function
+  - Update event listener creation to properly dispatch TodoMsg messages
+  - Ensure event handlers have access to current model state when needed
+  - Add error handling for event dispatch failures
+  - Test that DOM events properly trigger model updates
+  - _Requirements: 2.4, 1.5_
+
+- [ ] 17.3 Update TodoApp view to use working VDom events
+  - Remove placeholder event handlers from TodoApp view methods
+  - Replace custom attachEventListeners approach with working VDom events
+  - Ensure all user interactions (input, keydown, click, dblclick) work correctly
+  - Update event handlers to pass proper message constructors
+  - Test that Enter key on new-todo input dispatches AddTodo message
+  - _Requirements: 3.1, 4.1, 5.1, 6.1, 7.1_
+
+- [ ] 17.4 Integrate fixed event system with Runtime
+  - Update Runtime to pass message dispatch function to VDom.attachEventListeners
+  - Ensure event listeners are attached after initial render and updates
+  - Remove redundant custom event attachment code from Runtime
+  - Add logging to verify event listeners are properly attached
+  - Test that all TodoMVC interactions work in browser
+  - _Requirements: 1.5, 2.4_
+
+- [ ] 17.5 Verify E2E tests pass with fixed event system
+  - Run all E2E tests to ensure user interactions work
+  - Verify that adding todos via Enter key works
+  - Test that clicking checkboxes toggles todo completion
+  - Confirm that editing todos via double-click works
+  - Ensure all filter buttons and clear completed functionality works
+  - Achieve 100% E2E test pass rate (60/60 tests passing)
+  - _Requirements: 9.4_
