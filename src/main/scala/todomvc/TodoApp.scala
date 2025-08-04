@@ -2,8 +2,10 @@ package todomvc
 
 import architecture._
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import com.softwaremill.quicklens._
 import vdom.VNode
+import todomvc.{All, Active, Completed}
 
 /** TodoMVC application implementing the Elm Architecture pattern
   */
@@ -279,7 +281,9 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     import vdom.Html._
     import vdom.Events._
 
-    section("class" -> "todoapp")(
+    // The HTML already has the .todoapp wrapper, so we just render the content
+    // We use a fragment-like div to hold all the TodoMVC sections
+    div()(
       renderHeader(model),
       renderMain(model),
       renderFooter(model)
@@ -328,7 +332,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           "autofocus" -> "true"
         ),
         Map(
-          "input" -> onInputText(text => UpdateNewTodoText(text)),
+          "input" -> onInputText(UpdateNewTodoText.apply),
           "keydown" -> onEnterKey(AddTodo(model.newTodoText))
         )
       )
@@ -385,7 +389,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
       if (model.isEditing(todo.id)) Some("editing") else None
     ).flatten.mkString(" ")
 
-    li("class" -> classes)(
+    li("class" -> classes, "data-id" -> todo.id.toString)(
       div("class" -> "view")(
         input(
           Map(
@@ -416,8 +420,8 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             "value" -> model.editText
           ),
           Map(
-            "input" -> onInputText(text => UpdateEditText(text)),
-            "keydown" -> onEditKeyDown(todo.id, model.editText),
+            "input" -> onInputText(UpdateEditText.apply),
+            "keydown" -> onEditKeyDown(todo.id),
             "blur" -> onUpdateTodo(todo.id, model.editText)
           )
         )
@@ -506,68 +510,237 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     IO.unit
   }
 
-  /** Create an input event handler that extracts text value and creates a
-    * message
-    *
-    * @param msgFactory
-    *   Function to create a message from the input text
-    * @return
-    *   IO action for the input event
-    */
-  private def onInputText(msgFactory: String => TodoMsg): IO[Unit] = {
-    // This will be properly implemented when integrated with the DOM
-    // For now, this returns a placeholder IO that would dispatch the message
-    IO.unit
+  // Global dispatch function - will be set by the runtime
+  private var dispatchFn: Option[TodoMsg => IO[Unit]] = None
+
+  /** Set the dispatch function (called by the runtime) */
+  def setDispatch(dispatch: TodoMsg => IO[Unit]): Unit = {
+    dispatchFn = Some(dispatch)
   }
 
-  /** Create an Enter key event handler
-    *
-    * @param msg
-    *   Message to dispatch when Enter is pressed
-    * @return
-    *   IO action for the keydown event
-    */
-  private def onEnterKey(msg: TodoMsg): IO[Unit] = {
-    // This will be properly implemented when integrated with the DOM
-    // For now, this is a placeholder that simulates Enter key (keyCode 13)
-    IO.unit
+  /** Safely dispatch a message */
+  private def safeDispatch(msg: TodoMsg): IO[Unit] = {
+    dispatchFn.map(_(msg)).getOrElse(IO.unit)
   }
 
-  /** Create a keydown event handler for edit mode
-    *
-    * @param todoId
-    *   The ID of the todo being edited
-    * @param currentText
-    *   The current text in the edit field
-    * @return
-    *   IO action for the keydown event
+  /** Create event handlers that dispatch messages */
+
+  // These event handlers are now just placeholders since real event handling
+  // is done in attachEventListeners
+  private def onInputText(msgFactory: String => TodoMsg): IO[Unit] = IO.unit
+  private def onEnterKey(msgFactory: => TodoMsg): IO[Unit] = IO.unit
+  private def onEditKeyDown(todoId: Int): IO[Unit] = IO.unit
+
+  private def onToggleAll: IO[Unit] = safeDispatch(ToggleAll)
+  private def onToggleTodo(id: Int): IO[Unit] = safeDispatch(ToggleTodo(id))
+  private def onEditTodo(id: Int): IO[Unit] = safeDispatch(EditTodo(id))
+  private def onDeleteTodo(id: Int): IO[Unit] = safeDispatch(DeleteTodo(id))
+  private def onUpdateTodo(id: Int, text: String): IO[Unit] = safeDispatch(
+    UpdateTodo(id, text)
+  )
+  private def onClearCompleted: IO[Unit] = safeDispatch(ClearCompleted)
+  private def onSetFilter(filter: TodoFilter): IO[Unit] = safeDispatch(
+    SetFilter(filter)
+  )
+
+  /** Attach real DOM event listeners after rendering This is called by the
+    * Runtime after each render
     */
-  private def onEditKeyDown(todoId: Int, currentText: String): IO[Unit] = {
-    // This will handle Enter (save) and Escape (cancel) keys
-    // For now, this is a placeholder
-    IO.unit
+  def attachEventListeners(
+      container: org.scalajs.dom.Element,
+      model: TodoModel,
+      msgQueue: cats.effect.std.Queue[IO, TodoMsg]
+  ): IO[Unit] = {
+    import org.scalajs.dom
+    import org.scalajs.dom.{HTMLInputElement, KeyboardEvent}
+
+    IO.delay {
+      org.scalajs.dom.console.log(
+        s"[TodoApp] Attaching event listeners, todos count: ${model.todos.length}"
+      )
+
+      // Remove existing event listeners first
+      // (In a real implementation, we'd track these properly)
+
+      // New todo input
+      val newTodoInput =
+        container.querySelector(".new-todo").asInstanceOf[HTMLInputElement]
+      if (newTodoInput != null) {
+        // Clear existing listeners by cloning the element
+        val newInput =
+          newTodoInput.cloneNode(true).asInstanceOf[HTMLInputElement]
+        newTodoInput.parentNode.replaceChild(newInput, newTodoInput)
+
+        // Add input event listener
+        newInput.addEventListener(
+          "input",
+          (e: dom.Event) => {
+            val target = e.target.asInstanceOf[HTMLInputElement]
+            val value = target.value
+            msgQueue.offer(UpdateNewTodoText(value)).unsafeRunAsync(_ => ())
+          }
+        )
+
+        // Add keydown event listener for Enter key
+        newInput.addEventListener(
+          "keydown",
+          (e: dom.Event) => {
+            val keyEvent = e.asInstanceOf[KeyboardEvent]
+            if (keyEvent.keyCode == 13) { // Enter key
+              val target = e.target.asInstanceOf[HTMLInputElement]
+              val text = target.value.trim
+              if (text.nonEmpty) {
+                org.scalajs.dom.console
+                  .log(s"[TodoApp] Dispatching AddTodo: $text")
+                msgQueue.offer(AddTodo(text)).unsafeRunAsync(_ => ())
+                target.value = ""
+              }
+            }
+          }
+        )
+      }
+
+      // Toggle all checkbox
+      val toggleAll = container.querySelector(".toggle-all")
+      if (toggleAll != null) {
+        val newToggleAll = toggleAll.cloneNode(true).asInstanceOf[dom.Element]
+        toggleAll.parentNode.replaceChild(newToggleAll, toggleAll)
+
+        newToggleAll.addEventListener(
+          "change",
+          (_: dom.Event) => {
+            msgQueue.offer(ToggleAll).unsafeRunAsync(_ => ())
+          }
+        )
+      }
+
+      // Individual todo items
+      val todoList = container.querySelector(".todo-list")
+      if (todoList != null) {
+        val newTodoList = todoList.cloneNode(true).asInstanceOf[dom.Element]
+        todoList.parentNode.replaceChild(newTodoList, todoList)
+
+        // Add event delegation for todo items
+        newTodoList.addEventListener(
+          "click",
+          (e: dom.Event) => {
+            val target = e.target.asInstanceOf[dom.Element]
+            val li = target.closest("li")
+            if (li != null) {
+              val todoId = li.getAttribute("data-id").toInt
+
+              if (target.classList.contains("toggle")) {
+                msgQueue.offer(ToggleTodo(todoId)).unsafeRunAsync(_ => ())
+              } else if (target.classList.contains("destroy")) {
+                msgQueue.offer(DeleteTodo(todoId)).unsafeRunAsync(_ => ())
+              }
+            }
+          }
+        )
+
+        // Double-click to edit
+        newTodoList.addEventListener(
+          "dblclick",
+          (e: dom.Event) => {
+            val target = e.target.asInstanceOf[dom.Element]
+            if (target.tagName.toLowerCase == "label") {
+              val li = target.closest("li")
+              if (li != null) {
+                val todoId = li.getAttribute("data-id").toInt
+                msgQueue.offer(EditTodo(todoId)).unsafeRunAsync(_ => ())
+              }
+            }
+          }
+        )
+
+        // Edit input handling
+        newTodoList.addEventListener(
+          "keydown",
+          (e: dom.Event) => {
+            val target = e.target.asInstanceOf[dom.Element]
+            if (target.classList.contains("edit")) {
+              val keyEvent = e.asInstanceOf[KeyboardEvent]
+              val li = target.closest("li")
+              if (li != null) {
+                val todoId = li.getAttribute("data-id").toInt
+                val input = target.asInstanceOf[HTMLInputElement]
+
+                if (keyEvent.keyCode == 13) { // Enter
+                  msgQueue
+                    .offer(UpdateTodo(todoId, input.value))
+                    .unsafeRunAsync(_ => ())
+                } else if (keyEvent.keyCode == 27) { // Escape
+                  msgQueue.offer(CancelEdit).unsafeRunAsync(_ => ())
+                }
+              }
+            }
+          }
+        )
+
+        // Edit input blur
+        newTodoList.addEventListener(
+          "blur",
+          (e: dom.Event) => {
+            val target = e.target.asInstanceOf[dom.Element]
+            if (target.classList.contains("edit")) {
+              val li = target.closest("li")
+              if (li != null) {
+                val todoId = li.getAttribute("data-id").toInt
+                val input = target.asInstanceOf[HTMLInputElement]
+                msgQueue
+                  .offer(UpdateTodo(todoId, input.value))
+                  .unsafeRunAsync(_ => ())
+              }
+            }
+          },
+          true
+        ) // Use capture
+      }
+
+      // Filter links
+      val filters = container.querySelector(".filters")
+      if (filters != null) {
+        val newFilters = filters.cloneNode(true).asInstanceOf[dom.Element]
+        filters.parentNode.replaceChild(newFilters, filters)
+
+        newFilters.addEventListener(
+          "click",
+          (e: dom.Event) => {
+            val target = e.target.asInstanceOf[dom.Element]
+            if (target.tagName.toLowerCase == "a") {
+              e.preventDefault()
+              val href = target.getAttribute("href")
+              val filterName = href.substring(2) // Remove "#/"
+              val filter = filterName match {
+                case "active"    => Active
+                case "completed" => Completed
+                case _           => All
+              }
+              msgQueue.offer(SetFilter(filter)).unsafeRunAsync(_ => ())
+            }
+          }
+        )
+      }
+
+      // Clear completed button
+      val clearCompleted = container.querySelector(".clear-completed")
+      if (clearCompleted != null) {
+        val newClearCompleted =
+          clearCompleted.cloneNode(true).asInstanceOf[dom.Element]
+        clearCompleted.parentNode.replaceChild(
+          newClearCompleted,
+          clearCompleted
+        )
+
+        newClearCompleted.addEventListener(
+          "click",
+          (_: dom.Event) => {
+            msgQueue.offer(ClearCompleted).unsafeRunAsync(_ => ())
+          }
+        )
+      }
+    }
   }
-
-  /** Create a toggle all event handler */
-  private def onToggleAll: IO[Unit] = IO.unit
-
-  /** Create a toggle todo event handler */
-  private def onToggleTodo(id: Int): IO[Unit] = IO.unit
-
-  /** Create an edit todo event handler */
-  private def onEditTodo(id: Int): IO[Unit] = IO.unit
-
-  /** Create a delete todo event handler */
-  private def onDeleteTodo(id: Int): IO[Unit] = IO.unit
-
-  /** Create an update todo event handler */
-  private def onUpdateTodo(id: Int, text: String): IO[Unit] = IO.unit
-
-  /** Create a clear completed event handler */
-  private def onClearCompleted: IO[Unit] = IO.unit
-
-  /** Create a set filter event handler */
-  private def onSetFilter(filter: TodoFilter): IO[Unit] = IO.unit
 
   // Private helper functions for side effects
 

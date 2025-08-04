@@ -318,25 +318,16 @@ object VDom {
     events.toList.traverse { case (eventType, handler) =>
       IO.delay {
         val listener: js.Function1[Event, Unit] = (event: Event) => {
-          // Handle special cases for input events
-          eventType match {
-            case "input" =>
-              val target = event.target.asInstanceOf[dom.HTMLInputElement]
-              val value = target.value
-              // For input events, we need to create a new handler that passes the value
-              // This is a simplified approach - in a real implementation, we'd need better event handling
-              handler.unsafeRunAsync(_ => ())
-            case "keydown" =>
-              val keyEvent = event.asInstanceOf[dom.KeyboardEvent]
-              val keyCode = keyEvent.keyCode.toInt
-              // Similar to input, we'd need better event handling for keydown
-              handler.unsafeRunAsync(_ => ())
-            case _ =>
-              handler.unsafeRunAsync(_ => ())
+          // Execute the handler - it should contain the proper message dispatch logic
+          handler.unsafeRunAsync {
+            case Left(error) =>
+              dom.console.error(s"Event handler error: ${error.getMessage}")
+            case Right(_) =>
+            // Success - no action needed
           }
         }
         element.addEventListener(eventType, listener)
-        // Store the listener for later removal (in a real implementation, we'd need a registry)
+        // Store the listener for later removal
         element
           .asInstanceOf[js.Dynamic]
           .updateDynamic(s"__${eventType}_listener")(listener)

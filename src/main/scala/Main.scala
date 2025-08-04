@@ -48,7 +48,7 @@ object Main extends IOApp.Simple {
         console.log(s"Found application container: ${container.id}")
       )
 
-      // Create and start the runtime (placeholder implementation)
+      // Create and start the runtime
       _ <- IO.delay(console.log("Creating TodoApp runtime..."))
       _ <- createAndStartRuntime(container)
       _ <- IO.delay(console.log("TodoMVC application started successfully"))
@@ -61,9 +61,6 @@ object Main extends IOApp.Simple {
 
   /** Create and start the runtime with TodoApp
     *
-    * This is a placeholder implementation that will be completed when the
-    * architecture compilation issues are resolved.
-    *
     * @param container
     *   The DOM container element
     * @return
@@ -71,20 +68,17 @@ object Main extends IOApp.Simple {
     */
   private def createAndStartRuntime(container: Element): IO[Unit] = {
     for {
-      _ <- IO.delay(
-        console.log(
-          "Runtime creation placeholder - will integrate with TodoApp"
-        )
-      )
-      _ <- IO.delay(
-        console.log(
-          "Runtime startup placeholder - will start message processing"
-        )
-      )
+      _ <- IO.delay(console.log("Creating TodoApp runtime..."))
 
-      // TODO: Integrate with actual Runtime and TodoApp when compilation issues are resolved
-      // val runtime = new Runtime(TodoApp)
-      // runtime.start(container)
+      // Create the runtime with TodoApp
+      runtime = new architecture.Runtime(todomvc.TodoApp)
+
+      _ <- IO.delay(console.log("Starting TodoApp runtime..."))
+
+      // Start the runtime
+      _ <- runtime.start(container)
+
+      _ <- IO.delay(console.log("TodoApp runtime started successfully"))
 
     } yield ()
   }

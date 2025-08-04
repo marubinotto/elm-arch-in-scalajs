@@ -3,6 +3,7 @@ package architecture
 import cats.effect.{IO, Ref}
 import cats.effect.std.Queue
 import cats.effect.kernel.Fiber
+import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import org.scalajs.dom.Element
 import scala.concurrent.duration._
@@ -54,6 +55,17 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
 
       // Store message queue for dispatch method
       _ <- IO.delay { msgQueueOpt = Some(msgQueue) }
+
+      // Set up dispatch function for the app if it supports it
+      _ <- IO.delay {
+        app match {
+          case todoApp: todomvc.TodoApp.type =>
+            todoApp.setDispatch { msg =>
+              msgQueue.offer(msg)
+            }
+          case _ => // Other apps don't need this
+        }
+      }
 
       // Start all concurrent processes with error handling
       messageProcessor <- processMessagesWithErrorHandling(
@@ -254,6 +266,8 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
             element <- VDom.createElement(newVNode)
             _ <- IO.delay(container.appendChild(element))
             _ <- currentVNodeRef.set(Some(newVNode))
+            // Attach real event listeners after initial render
+            _ <- attachEventListeners(container, currentModel)
           } yield ()
 
         case Some(oldVNode) =>
@@ -265,6 +279,8 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
                 for {
                   _ <- VDom.patch(container.firstChild, patches)
                   _ <- currentVNodeRef.set(Some(newVNode))
+                  // Re-attach event listeners after update
+                  _ <- attachEventListeners(container, currentModel)
                 } yield ()
               } else IO.unit
           } yield ()
@@ -274,6 +290,27 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       _ <- IO.sleep(16.millis) // ~60 FPS
     } yield ()
   }.foreverM
+
+  /** Attach real DOM event listeners after rendering
+    */
+  private def attachEventListeners(
+      container: Element,
+      model: Model
+  ): IO[Unit] = {
+    msgQueueOpt match {
+      case Some(msgQueue) =>
+        app match {
+          case todoApp: todomvc.TodoApp.type =>
+            todoApp.attachEventListeners(container, model, msgQueue)
+          case _ => IO.unit
+        }
+      case None =>
+        IO.delay(
+          org.scalajs.dom.console
+            .error("Message queue not available for event listeners")
+        )
+    }
+  }
 
   /** Render loop with comprehensive error handling */
   private def renderLoopWithErrorHandling(
