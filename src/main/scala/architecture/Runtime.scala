@@ -266,7 +266,26 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
   ): IO[Unit] = {
     for {
       currentModel <- modelRef.get
-      newVNode = app.view(currentModel)
+
+      // Use viewWithDispatch if available, otherwise fall back to regular view
+      newVNode = app match {
+        case todoApp: todomvc.TodoApp.type =>
+          msgQueueOpt match {
+            case Some(msgQueue) =>
+              val dispatch = (msg: todomvc.TodoMsg) => msgQueue.offer(msg)
+              todoApp
+                .viewWithDispatch(
+                  currentModel.asInstanceOf[todomvc.TodoModel],
+                  dispatch
+                )
+                .asInstanceOf[VNode]
+            case None =>
+              app.view(currentModel)
+          }
+        case _ =>
+          app.view(currentModel)
+      }
+
       currentVNodeOpt <- currentVNodeRef.get
 
       _ <- currentVNodeOpt match {
@@ -274,21 +293,16 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           // Initial render
           for {
             _ <- IO.delay(
-              org.scalajs.dom.console.log("[Runtime] Initial render")
+              org.scalajs.dom.console.log(
+                "[Runtime] Initial render with VDom events"
+              )
             )
             element <- VDom.createElement(newVNode)
             _ <- IO.delay(container.appendChild(element))
             _ <- currentVNodeRef.set(Some(newVNode))
-            // Attach real event listeners after initial render
             _ <- IO.delay(
               org.scalajs.dom.console.log(
-                "[Runtime] About to attach event listeners"
-              )
-            )
-            _ <- attachEventListeners(container, currentModel)
-            _ <- IO.delay(
-              org.scalajs.dom.console.log(
-                "[Runtime] Event listeners attached"
+                "[Runtime] Initial render complete - VDom events are active"
               )
             )
           } yield ()
@@ -302,8 +316,11 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
                 for {
                   _ <- VDom.patch(container.firstChild, patches)
                   _ <- currentVNodeRef.set(Some(newVNode))
-                  // Re-attach event listeners after update
-                  _ <- attachEventListeners(container, currentModel)
+                  _ <- IO.delay(
+                    org.scalajs.dom.console.log(
+                      "[Runtime] DOM updated with VDom events"
+                    )
+                  )
                 } yield ()
               } else IO.unit
           } yield ()
@@ -313,46 +330,6 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       _ <- IO.sleep(16.millis) // ~60 FPS
     } yield ()
   }.foreverM
-
-  /** Attach real DOM event listeners after rendering
-    */
-  private def attachEventListeners(
-      container: Element,
-      model: Model
-  ): IO[Unit] = {
-    for {
-      _ <- IO.delay(
-        org.scalajs.dom.console.log("[Runtime] attachEventListeners called")
-      )
-      _ <- msgQueueOpt match {
-        case Some(msgQueue) =>
-          for {
-            _ <- IO.delay(
-              org.scalajs.dom.console.log("[Runtime] Message queue available")
-            )
-            _ <- app match {
-              case todoApp: todomvc.TodoApp.type =>
-                for {
-                  _ <- IO.delay(
-                    org.scalajs.dom.console
-                      .log("[Runtime] Calling TodoApp.attachEventListeners")
-                  )
-                  _ <- todoApp.attachEventListeners(container, model, msgQueue)
-                } yield ()
-              case _ =>
-                IO.delay(
-                  org.scalajs.dom.console.log("[Runtime] App is not TodoApp")
-                )
-            }
-          } yield ()
-        case None =>
-          IO.delay(
-            org.scalajs.dom.console
-              .error("Message queue not available for event listeners")
-          )
-      }
-    } yield ()
-  }
 
   /** Render loop with comprehensive error handling */
   private def renderLoopWithErrorHandling(
@@ -378,7 +355,25 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           // Normal view rendering with error boundary
           IO.delay {
             try {
-              app.view(currentModel)
+              // Use viewWithDispatch if available, otherwise fall back to regular view
+              app match {
+                case todoApp: todomvc.TodoApp.type =>
+                  msgQueueOpt match {
+                    case Some(msgQueue) =>
+                      val dispatch =
+                        (msg: todomvc.TodoMsg) => msgQueue.offer(msg)
+                      todoApp
+                        .viewWithDispatch(
+                          currentModel.asInstanceOf[todomvc.TodoModel],
+                          dispatch
+                        )
+                        .asInstanceOf[VNode]
+                    case None =>
+                      app.view(currentModel)
+                  }
+                case _ =>
+                  app.view(currentModel)
+              }
             } catch {
               case error: Throwable =>
                 org.scalajs.dom.console

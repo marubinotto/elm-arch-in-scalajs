@@ -137,8 +137,8 @@
   - [ ] Write tests for concurrent operations and race conditions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 17. Fix VDom event system for E2E test compatibility
-- [ ] 17.1 Complete Events.scala implementation with real DOM event handling
+- [x] 17. Fix VDom event system for E2E test compatibility
+- [x] 17.1 Complete Events.scala implementation with real DOM event handling
   - Replace placeholder onInput handler with real DOM event capture
   - Implement proper value extraction from input events using event.target.value
   - Replace placeholder onKeyDown handler with real keyCode detection
@@ -146,7 +146,7 @@
   - Ensure all event handlers properly dispatch messages to the Runtime
   - _Requirements: 2.4, 9.4_
 
-- [ ] 17.2 Fix VDom.attachEventListeners to work with message dispatching
+- [x] 17.2 Fix VDom.attachEventListeners to work with message dispatching
   - Modify attachEventListeners to accept message dispatch function
   - Update event listener creation to properly dispatch TodoMsg messages
   - Ensure event handlers have access to current model state when needed
@@ -154,7 +154,7 @@
   - Test that DOM events properly trigger model updates
   - _Requirements: 2.4, 1.5_
 
-- [ ] 17.3 Update TodoApp view to use working VDom events
+- [x] 17.3 Update TodoApp view to use working VDom events
   - Remove placeholder event handlers from TodoApp view methods
   - Replace custom attachEventListeners approach with working VDom events
   - Ensure all user interactions (input, keydown, click, dblclick) work correctly
@@ -162,7 +162,7 @@
   - Test that Enter key on new-todo input dispatches AddTodo message
   - _Requirements: 3.1, 4.1, 5.1, 6.1, 7.1_
 
-- [ ] 17.4 Integrate fixed event system with Runtime
+- [x] 17.4 Integrate fixed event system with Runtime
   - Update Runtime to pass message dispatch function to VDom.attachEventListeners
   - Ensure event listeners are attached after initial render and updates
   - Remove redundant custom event attachment code from Runtime
@@ -170,7 +170,7 @@
   - Test that all TodoMVC interactions work in browser
   - _Requirements: 1.5, 2.4_
 
-- [ ] 17.5 Verify E2E tests pass with fixed event system
+- [x] 17.5 Verify E2E tests pass with fixed event system
   - Run all E2E tests to ensure user interactions work
   - Verify that adding todos via Enter key works
   - Test that clicking checkboxes toggles todo completion

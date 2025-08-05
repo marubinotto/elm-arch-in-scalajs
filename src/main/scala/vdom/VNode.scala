@@ -1,6 +1,7 @@
 package vdom
 
 import cats.effect.IO
+import org.scalajs.dom.Event
 
 /** Virtual DOM node representation
   */
@@ -11,9 +12,7 @@ sealed trait VNode
 case class VElement(
     tag: String,
     attrs: Map[String, String],
-    events: Map[String, IO[
-      Unit
-    ]], // Simplified for now, will be parameterized later
+    events: Map[String, Event => IO[Unit]], // Updated to handle real DOM events
     children: List[VNode]
 ) extends VNode
 

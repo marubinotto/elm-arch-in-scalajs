@@ -279,7 +279,6 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     */
   def view(model: TodoModel): VNode = {
     import vdom.Html._
-    import vdom.Events._
 
     // Since we can't create fragments, we'll create a div that acts as a container
     // but we'll make sure the CSS and structure work correctly
@@ -287,6 +286,30 @@ object TodoApp extends App[TodoModel, TodoMsg] {
       renderHeader(model),
       renderMain(model),
       renderFooter(model)
+    )
+  }
+
+  /** Render the current model as a virtual DOM tree with message dispatch
+    *
+    * @param model
+    *   The current model state
+    * @param dispatch
+    *   Function to dispatch messages
+    * @return
+    *   Virtual DOM representation of the UI
+    */
+  def viewWithDispatch(
+      model: TodoModel,
+      dispatch: TodoMsg => IO[Unit]
+  ): VNode = {
+    import vdom.Html._
+
+    // Since we can't create fragments, we'll create a div that acts as a container
+    // but we'll make sure the CSS and structure work correctly
+    div("style" -> "display: contents;")(
+      renderHeaderWithDispatch(model, dispatch),
+      renderMainWithDispatch(model, dispatch),
+      renderFooterWithDispatch(model, dispatch)
     )
   }
 
@@ -320,6 +343,32 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     */
   private def renderHeader(model: TodoModel): VNode = {
     import vdom.Html._
+
+    header("class" -> "header")(
+      h1()(text("todos")),
+      input(
+        "class" -> "new-todo",
+        "placeholder" -> "What needs to be done?",
+        "value" -> model.newTodoText,
+        "autofocus" -> "true"
+      )
+    )
+  }
+
+  /** Render the header section with new todo input and message dispatch
+    *
+    * @param model
+    *   The current model state
+    * @param dispatch
+    *   Function to dispatch messages
+    * @return
+    *   Virtual DOM node for the header
+    */
+  private def renderHeaderWithDispatch(
+      model: TodoModel,
+      dispatch: TodoMsg => IO[Unit]
+  ): VNode = {
+    import vdom.Html._
     import vdom.Events._
 
     header("class" -> "header")(
@@ -332,8 +381,32 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           "autofocus" -> "true"
         ),
         Map(
-          "input" -> onInputText(UpdateNewTodoText.apply),
-          "keydown" -> onEnterKey(AddTodo(model.newTodoText))
+          onInputValue(UpdateNewTodoText.apply, dispatch),
+          "keydown" -> { (event: org.scalajs.dom.Event) =>
+            for {
+              keyEvent <- IO.delay(
+                event.asInstanceOf[org.scalajs.dom.KeyboardEvent]
+              )
+              _ <-
+                if (keyEvent.keyCode == 13) { // Enter key
+                  for {
+                    target <- IO.delay(
+                      event.target
+                        .asInstanceOf[org.scalajs.dom.HTMLInputElement]
+                    )
+                    text <- IO.delay(target.value.trim)
+                    _ <-
+                      if (text.nonEmpty) {
+                        for {
+                          _ <- IO.delay(keyEvent.preventDefault())
+                          _ <- dispatch(AddTodo(text))
+                          _ <- IO.delay(target.value = "")
+                        } yield ()
+                      } else IO.unit
+                  } yield ()
+                } else IO.unit
+            } yield ()
+          }
         )
       )
     )
@@ -354,6 +427,42 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     } else {
       section("class" -> "main")(
         input(
+          (Map(
+            "id" -> "toggle-all",
+            "class" -> "toggle-all",
+            "type" -> "checkbox"
+          ) ++ (if (model.allCompleted) Map("checked" -> "checked")
+                else Map.empty)).toSeq*
+        ),
+        label("for" -> "toggle-all")(text("Mark all as complete")),
+        ul("class" -> "todo-list")(
+          model.filteredTodos.map(renderTodoItem(_, model))*
+        )
+      )
+    }
+  }
+
+  /** Render the main section with todo list and message dispatch
+    *
+    * @param model
+    *   The current model state
+    * @param dispatch
+    *   Function to dispatch messages
+    * @return
+    *   Virtual DOM node for the main section
+    */
+  private def renderMainWithDispatch(
+      model: TodoModel,
+      dispatch: TodoMsg => IO[Unit]
+  ): VNode = {
+    import vdom.Html._
+    import vdom.Events._
+
+    if (model.todos.isEmpty) {
+      text("") // Empty node when no todos
+    } else {
+      section("class" -> "main")(
+        input(
           Map(
             "id" -> "toggle-all",
             "class" -> "toggle-all",
@@ -361,12 +470,14 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           ) ++ (if (model.allCompleted) Map("checked" -> "checked")
                 else Map.empty),
           Map(
-            "change" -> onToggleAll
+            onChangeMsg(ToggleAll, dispatch)
           )
         ),
         label("for" -> "toggle-all")(text("Mark all as complete")),
         ul("class" -> "todo-list")(
-          model.filteredTodos.map(renderTodoItem(_, model))*
+          model.filteredTodos.map(
+            renderTodoItemWithDispatch(_, model, dispatch)
+          )*
         )
       )
     }
@@ -392,24 +503,71 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     li("class" -> classes, "data-id" -> todo.id.toString)(
       div("class" -> "view")(
         input(
+          (Map(
+            "class" -> "toggle",
+            "type" -> "checkbox"
+          ) ++ (if (todo.completed) Map("checked" -> "checked")
+                else Map.empty)).toSeq*
+        ),
+        label()(text(todo.text)),
+        button("class" -> "destroy")()
+      ),
+      if (model.isEditing(todo.id)) {
+        input(
+          "class" -> "edit",
+          "value" -> model.editText
+        )
+      } else {
+        text("") // Empty node when not editing
+      }
+    )
+  }
+
+  /** Render an individual todo item with message dispatch
+    *
+    * @param todo
+    *   The todo item to render
+    * @param model
+    *   The current model state
+    * @param dispatch
+    *   Function to dispatch messages
+    * @return
+    *   Virtual DOM node for the todo item
+    */
+  private def renderTodoItemWithDispatch(
+      todo: Todo,
+      model: TodoModel,
+      dispatch: TodoMsg => IO[Unit]
+  ): VNode = {
+    import vdom.Html._
+    import vdom.Events._
+
+    val classes = List(
+      if (todo.completed) Some("completed") else None,
+      if (model.isEditing(todo.id)) Some("editing") else None
+    ).flatten.mkString(" ")
+
+    li("class" -> classes, "data-id" -> todo.id.toString)(
+      div("class" -> "view")(
+        input(
           Map(
             "class" -> "toggle",
             "type" -> "checkbox"
           ) ++ (if (todo.completed) Map("checked" -> "checked") else Map.empty),
           Map(
-            "change" -> onToggleTodo(todo.id)
+            onChangeMsg(ToggleTodo(todo.id), dispatch)
           )
         ),
         label(
           Map.empty,
           Map(
-            "dblclick" -> onEditTodo(todo.id)
+            onDoubleClickMsg(EditTodo(todo.id), dispatch)
           )
         )(text(todo.text)),
         button(
           Map("class" -> "destroy"),
           Map(
-            "click" -> onDeleteTodo(todo.id)
+            onClickMsg(DeleteTodo(todo.id), dispatch)
           )
         )()
       ),
@@ -420,9 +578,36 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             "value" -> model.editText
           ),
           Map(
-            "input" -> onInputText(UpdateEditText.apply),
-            "keydown" -> onEditKeyDown(todo.id),
-            "blur" -> onUpdateTodo(todo.id, model.editText)
+            onInputValue(UpdateEditText.apply, dispatch),
+            "keydown" -> { (event: org.scalajs.dom.Event) =>
+              for {
+                keyEvent <- IO.delay(
+                  event.asInstanceOf[org.scalajs.dom.KeyboardEvent]
+                )
+                _ <- keyEvent.keyCode match {
+                  case 13 => // Enter
+                    for {
+                      _ <- IO.delay(keyEvent.preventDefault())
+                      target <- IO.delay(
+                        event.target
+                          .asInstanceOf[org.scalajs.dom.HTMLInputElement]
+                      )
+                      _ <- dispatch(UpdateTodo(todo.id, target.value))
+                    } yield ()
+                  case 27 => // Escape
+                    for {
+                      _ <- IO.delay(keyEvent.preventDefault())
+                      _ <- dispatch(CancelEdit)
+                    } yield ()
+                  case _ => // Other keys - do nothing
+                    IO.unit
+                }
+              } yield ()
+            },
+            onBlurValue(
+              (text: String) => UpdateTodo(todo.id, text),
+              dispatch
+            )
           )
         )
       } else {
@@ -454,10 +639,49 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           TodoFilter.all.map(renderFilterButton(_, model.filter))*
         ),
         if (model.hasCompleted) {
+          button("class" -> "clear-completed")(text("Clear completed"))
+        } else {
+          text("") // Empty node when no completed todos
+        }
+      )
+    }
+  }
+
+  /** Render the footer section with filters and stats and message dispatch
+    *
+    * @param model
+    *   The current model state
+    * @param dispatch
+    *   Function to dispatch messages
+    * @return
+    *   Virtual DOM node for the footer
+    */
+  private def renderFooterWithDispatch(
+      model: TodoModel,
+      dispatch: TodoMsg => IO[Unit]
+  ): VNode = {
+    import vdom.Html._
+    import vdom.Events._
+
+    if (model.todos.isEmpty) {
+      text("") // Empty node when no todos
+    } else {
+      footer("class" -> "footer")(
+        span("class" -> "todo-count")(
+          text(s"${model.activeCount} ${
+              if (model.activeCount == 1) "item" else "items"
+            } left")
+        ),
+        ul("class" -> "filters")(
+          TodoFilter.all.map(
+            renderFilterButtonWithDispatch(_, model.filter, dispatch)
+          )*
+        ),
+        if (model.hasCompleted) {
           button(
             Map("class" -> "clear-completed"),
             Map(
-              "click" -> onClearCompleted
+              onClickMsg(ClearCompleted, dispatch)
             )
           )(text("Clear completed"))
         } else {
@@ -484,30 +708,49 @@ object TodoApp extends App[TodoModel, TodoMsg] {
 
     li()(
       a(
+        (Map(
+          "href" -> s"#/${filter.displayName.toLowerCase}"
+        ) ++ (if (filter == currentFilter) Map("class" -> "selected")
+              else Map.empty)).toSeq*
+      )(text(filter.displayName))
+    )
+  }
+
+  /** Render a filter button with message dispatch
+    *
+    * @param filter
+    *   The filter option
+    * @param currentFilter
+    *   The currently selected filter
+    * @param dispatch
+    *   Function to dispatch messages
+    * @return
+    *   Virtual DOM node for the filter button
+    */
+  private def renderFilterButtonWithDispatch(
+      filter: TodoFilter,
+      currentFilter: TodoFilter,
+      dispatch: TodoMsg => IO[Unit]
+  ): VNode = {
+    import vdom.Html._
+    import vdom.Events._
+
+    li()(
+      a(
         Map(
           "href" -> s"#/${filter.displayName.toLowerCase}"
         ) ++ (if (filter == currentFilter) Map("class" -> "selected")
               else Map.empty),
         Map(
-          "click" -> onSetFilter(filter)
+          "click" -> { (event: org.scalajs.dom.Event) =>
+            for {
+              _ <- IO.delay(event.preventDefault())
+              _ <- dispatch(SetFilter(filter))
+            } yield ()
+          }
         )
       )(text(filter.displayName))
     )
-  }
-
-  // Private helper methods for event handling and message dispatching
-
-  /** Create a message dispatch action
-    *
-    * @param msg
-    *   The message to dispatch
-    * @return
-    *   IO action that dispatches the message
-    */
-  private def dispatchMessage(msg: TodoMsg): IO[Unit] = {
-    // This will be connected to the runtime's dispatch method
-    // For now, this is a placeholder that will be enhanced when integrated with the runtime
-    IO.unit
   }
 
   // Global dispatch function - will be set by the runtime
@@ -521,229 +764,6 @@ object TodoApp extends App[TodoModel, TodoMsg] {
   /** Safely dispatch a message */
   private def safeDispatch(msg: TodoMsg): IO[Unit] = {
     dispatchFn.map(_(msg)).getOrElse(IO.unit)
-  }
-
-  /** Create event handlers that dispatch messages */
-
-  // These event handlers are now just placeholders since real event handling
-  // is done in attachEventListeners
-  private def onInputText(msgFactory: String => TodoMsg): IO[Unit] = IO.unit
-  private def onEnterKey(msgFactory: => TodoMsg): IO[Unit] = IO.unit
-  private def onEditKeyDown(todoId: Int): IO[Unit] = IO.unit
-
-  private def onToggleAll: IO[Unit] = safeDispatch(ToggleAll)
-  private def onToggleTodo(id: Int): IO[Unit] = safeDispatch(ToggleTodo(id))
-  private def onEditTodo(id: Int): IO[Unit] = safeDispatch(EditTodo(id))
-  private def onDeleteTodo(id: Int): IO[Unit] = safeDispatch(DeleteTodo(id))
-  private def onUpdateTodo(id: Int, text: String): IO[Unit] = safeDispatch(
-    UpdateTodo(id, text)
-  )
-  private def onClearCompleted: IO[Unit] = safeDispatch(ClearCompleted)
-  private def onSetFilter(filter: TodoFilter): IO[Unit] = safeDispatch(
-    SetFilter(filter)
-  )
-
-  /** Attach real DOM event listeners after rendering This is called by the
-    * Runtime after each render
-    */
-  def attachEventListeners(
-      container: org.scalajs.dom.Element,
-      model: TodoModel,
-      msgQueue: cats.effect.std.Queue[IO, TodoMsg]
-  ): IO[Unit] = {
-    import org.scalajs.dom
-    import org.scalajs.dom.{HTMLInputElement, KeyboardEvent}
-
-    IO.delay {
-      org.scalajs.dom.console.log(
-        s"[TodoApp] Attaching event listeners, todos count: ${model.todos.length}"
-      )
-      org.scalajs.dom.console
-        .log(s"[TodoApp] Container: ${container.tagName}, id: ${container.id}")
-
-      // Remove existing event listeners first
-      // (In a real implementation, we'd track these properly)
-
-      // New todo input
-      val newTodoInput =
-        container.querySelector(".new-todo").asInstanceOf[HTMLInputElement]
-      org.scalajs.dom.console
-        .log(s"[TodoApp] Found new todo input: ${newTodoInput != null}")
-      if (newTodoInput != null) {
-        // Clear existing listeners by cloning the element
-        val newInput =
-          newTodoInput.cloneNode(true).asInstanceOf[HTMLInputElement]
-        newTodoInput.parentNode.replaceChild(newInput, newTodoInput)
-
-        // Add input event listener
-        newInput.addEventListener(
-          "input",
-          (e: dom.Event) => {
-            val target = e.target.asInstanceOf[HTMLInputElement]
-            val value = target.value
-            msgQueue.offer(UpdateNewTodoText(value)).unsafeRunAsync(_ => ())
-          }
-        )
-
-        // Add keydown event listener for Enter key
-        newInput.addEventListener(
-          "keydown",
-          (e: dom.Event) => {
-            val keyEvent = e.asInstanceOf[KeyboardEvent]
-            if (keyEvent.keyCode == 13) { // Enter key
-              val target = e.target.asInstanceOf[HTMLInputElement]
-              val text = target.value.trim
-              if (text.nonEmpty) {
-                org.scalajs.dom.console
-                  .log(s"[TodoApp] Dispatching AddTodo: $text")
-                msgQueue.offer(AddTodo(text)).unsafeRunAsync(_ => ())
-                target.value = ""
-              }
-            }
-          }
-        )
-      }
-
-      // Toggle all checkbox
-      val toggleAll = container.querySelector(".toggle-all")
-      if (toggleAll != null) {
-        val newToggleAll = toggleAll.cloneNode(true).asInstanceOf[dom.Element]
-        toggleAll.parentNode.replaceChild(newToggleAll, toggleAll)
-
-        newToggleAll.addEventListener(
-          "change",
-          (_: dom.Event) => {
-            msgQueue.offer(ToggleAll).unsafeRunAsync(_ => ())
-          }
-        )
-      }
-
-      // Individual todo items
-      val todoList = container.querySelector(".todo-list")
-      if (todoList != null) {
-        val newTodoList = todoList.cloneNode(true).asInstanceOf[dom.Element]
-        todoList.parentNode.replaceChild(newTodoList, todoList)
-
-        // Add event delegation for todo items
-        newTodoList.addEventListener(
-          "click",
-          (e: dom.Event) => {
-            val target = e.target.asInstanceOf[dom.Element]
-            val li = target.closest("li")
-            if (li != null) {
-              val todoId = li.getAttribute("data-id").toInt
-
-              if (target.classList.contains("toggle")) {
-                msgQueue.offer(ToggleTodo(todoId)).unsafeRunAsync(_ => ())
-              } else if (target.classList.contains("destroy")) {
-                msgQueue.offer(DeleteTodo(todoId)).unsafeRunAsync(_ => ())
-              }
-            }
-          }
-        )
-
-        // Double-click to edit
-        newTodoList.addEventListener(
-          "dblclick",
-          (e: dom.Event) => {
-            val target = e.target.asInstanceOf[dom.Element]
-            if (target.tagName.toLowerCase == "label") {
-              val li = target.closest("li")
-              if (li != null) {
-                val todoId = li.getAttribute("data-id").toInt
-                msgQueue.offer(EditTodo(todoId)).unsafeRunAsync(_ => ())
-              }
-            }
-          }
-        )
-
-        // Edit input handling
-        newTodoList.addEventListener(
-          "keydown",
-          (e: dom.Event) => {
-            val target = e.target.asInstanceOf[dom.Element]
-            if (target.classList.contains("edit")) {
-              val keyEvent = e.asInstanceOf[KeyboardEvent]
-              val li = target.closest("li")
-              if (li != null) {
-                val todoId = li.getAttribute("data-id").toInt
-                val input = target.asInstanceOf[HTMLInputElement]
-
-                if (keyEvent.keyCode == 13) { // Enter
-                  msgQueue
-                    .offer(UpdateTodo(todoId, input.value))
-                    .unsafeRunAsync(_ => ())
-                } else if (keyEvent.keyCode == 27) { // Escape
-                  msgQueue.offer(CancelEdit).unsafeRunAsync(_ => ())
-                }
-              }
-            }
-          }
-        )
-
-        // Edit input blur
-        newTodoList.addEventListener(
-          "blur",
-          (e: dom.Event) => {
-            val target = e.target.asInstanceOf[dom.Element]
-            if (target.classList.contains("edit")) {
-              val li = target.closest("li")
-              if (li != null) {
-                val todoId = li.getAttribute("data-id").toInt
-                val input = target.asInstanceOf[HTMLInputElement]
-                msgQueue
-                  .offer(UpdateTodo(todoId, input.value))
-                  .unsafeRunAsync(_ => ())
-              }
-            }
-          },
-          true
-        ) // Use capture
-      }
-
-      // Filter links
-      val filters = container.querySelector(".filters")
-      if (filters != null) {
-        val newFilters = filters.cloneNode(true).asInstanceOf[dom.Element]
-        filters.parentNode.replaceChild(newFilters, filters)
-
-        newFilters.addEventListener(
-          "click",
-          (e: dom.Event) => {
-            val target = e.target.asInstanceOf[dom.Element]
-            if (target.tagName.toLowerCase == "a") {
-              e.preventDefault()
-              val href = target.getAttribute("href")
-              val filterName = href.substring(2) // Remove "#/"
-              val filter = filterName match {
-                case "active"    => Active
-                case "completed" => Completed
-                case _           => All
-              }
-              msgQueue.offer(SetFilter(filter)).unsafeRunAsync(_ => ())
-            }
-          }
-        )
-      }
-
-      // Clear completed button
-      val clearCompleted = container.querySelector(".clear-completed")
-      if (clearCompleted != null) {
-        val newClearCompleted =
-          clearCompleted.cloneNode(true).asInstanceOf[dom.Element]
-        clearCompleted.parentNode.replaceChild(
-          newClearCompleted,
-          clearCompleted
-        )
-
-        newClearCompleted.addEventListener(
-          "click",
-          (_: dom.Event) => {
-            msgQueue.offer(ClearCompleted).unsafeRunAsync(_ => ())
-          }
-        )
-      }
-    }
   }
 
   // Private helper functions for side effects

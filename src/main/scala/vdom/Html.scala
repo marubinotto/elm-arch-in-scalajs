@@ -1,6 +1,7 @@
 package vdom
 
 import cats.effect.IO
+import org.scalajs.dom.Event
 
 /** HTML element creation functions for virtual DOM
   */
@@ -14,7 +15,7 @@ object Html {
 
   /** Create a div element with attributes and events
     */
-  def div(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+  def div(attrs: Map[String, String], events: Map[String, Event => IO[Unit]])(
       children: VNode*
   ): VNode = {
     VElement("div", attrs, events, children.toList)
@@ -30,7 +31,7 @@ object Html {
     */
   def input(
       attrs: Map[String, String],
-      events: Map[String, IO[Unit]]
+      events: Map[String, Event => IO[Unit]]
   ): VNode = {
     VElement("input", attrs, events, List.empty)
   }
@@ -43,7 +44,10 @@ object Html {
 
   /** Create a button element with attributes and events
     */
-  def button(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+  def button(
+      attrs: Map[String, String],
+      events: Map[String, Event => IO[Unit]]
+  )(
       children: VNode*
   ): VNode = {
     VElement("button", attrs, events, children.toList)
@@ -63,7 +67,7 @@ object Html {
 
   /** Create a span element with events
     */
-  def span(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+  def span(attrs: Map[String, String], events: Map[String, Event => IO[Unit]])(
       children: VNode*
   ): VNode = {
     VElement("span", attrs, events, children.toList)
@@ -83,7 +87,7 @@ object Html {
 
   /** Create a li element with events
     */
-  def li(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+  def li(attrs: Map[String, String], events: Map[String, Event => IO[Unit]])(
       children: VNode*
   ): VNode = {
     VElement("li", attrs, events, children.toList)
@@ -97,7 +101,7 @@ object Html {
 
   /** Create a label element with events
     */
-  def label(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+  def label(attrs: Map[String, String], events: Map[String, Event => IO[Unit]])(
       children: VNode*
   ): VNode = {
     VElement("label", attrs, events, children.toList)
@@ -135,7 +139,7 @@ object Html {
 
   /** Create an a element with attributes and events
     */
-  def a(attrs: Map[String, String], events: Map[String, IO[Unit]])(
+  def a(attrs: Map[String, String], events: Map[String, Event => IO[Unit]])(
       children: VNode*
   ): VNode = {
     VElement("a", attrs, events, children.toList)

@@ -29,7 +29,7 @@ case class UpdateAttrs(
 /** Update event handlers of an element
   */
 case class UpdateEvents(
-    addEvents: Map[String, IO[Unit]],
+    addEvents: Map[String, Event => IO[Unit]],
     removeEvents: Set[String]
 ) extends Patch
 
@@ -143,17 +143,17 @@ object VDom {
   }
 
   private def diffEvents(
-      oldEvents: Map[String, IO[Unit]],
-      newEvents: Map[String, IO[Unit]]
+      oldEvents: Map[String, Event => IO[Unit]],
+      newEvents: Map[String, Event => IO[Unit]]
   ): List[Patch] = {
-    // For events, we compare by key presence since IO[Unit] doesn't have meaningful equality
+    // For events, we compare by key presence since Event => IO[Unit] doesn't have meaningful equality
     // We need to update all events in newEvents and remove events not in newEvents
     // However, if the event sets are identical by keys, we assume no change
     val removeEvents = oldEvents.keySet -- newEvents.keySet
     val addEvents =
       if (oldEvents.keySet == newEvents.keySet && removeEvents.isEmpty) {
         // If the keys are the same, assume no change needed
-        Map.empty[String, IO[Unit]]
+        Map.empty[String, Event => IO[Unit]]
       } else {
         // Otherwise, update all events in newEvents
         newEvents
@@ -313,13 +313,13 @@ object VDom {
     */
   private def attachEventListeners(
       element: Element,
-      events: Map[String, IO[Unit]]
+      events: Map[String, Event => IO[Unit]]
   ): IO[Unit] = {
     events.toList.traverse { case (eventType, handler) =>
       IO.delay {
         val listener: js.Function1[Event, Unit] = (event: Event) => {
-          // Execute the handler - it should contain the proper message dispatch logic
-          handler.unsafeRunAsync {
+          // Execute the handler with the actual DOM event
+          handler(event).unsafeRunAsync {
             case Left(error) =>
               dom.console.error(s"Event handler error: ${error.getMessage}")
             case Right(_) =>
