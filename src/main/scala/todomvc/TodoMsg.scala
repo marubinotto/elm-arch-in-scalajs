@@ -21,6 +21,9 @@ case class EditTodo(id: Int) extends TodoMsg
 /** Update the text of a todo by ID */
 case class UpdateTodo(id: Int, text: String) extends TodoMsg
 
+/** Update todo text only if still editing (for blur events) */
+case class UpdateTodoIfEditing(id: Int, text: String) extends TodoMsg
+
 /** Cancel editing mode without saving changes */
 case object CancelEdit extends TodoMsg
 

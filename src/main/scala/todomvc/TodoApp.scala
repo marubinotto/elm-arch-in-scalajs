@@ -214,6 +214,16 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             Update(model, Cmd.none)
         }
 
+      // Update todo text only if still editing (for blur events)
+      case UpdateTodoIfEditing(id, text) =>
+        if (model.isEditing(id)) {
+          // If still editing, treat it like a regular UpdateTodo
+          update(UpdateTodo(id, text), model)
+        } else {
+          // If not editing anymore (e.g., after Escape), ignore the blur event
+          Update(model, Cmd.none)
+        }
+
       // Cancel editing without saving changes
       case CancelEdit =>
         val updatedModel = model
@@ -470,7 +480,21 @@ object TodoApp extends App[TodoModel, TodoMsg] {
           ) ++ (if (model.allCompleted) Map("checked" -> "checked")
                 else Map.empty),
           Map(
-            onChangeMsg(ToggleAll, dispatch)
+            onChangeMsg(ToggleAll, dispatch),
+            "keydown" -> { (event: org.scalajs.dom.Event) =>
+              for {
+                keyEvent <- IO.delay(
+                  event.asInstanceOf[org.scalajs.dom.KeyboardEvent]
+                )
+                _ <-
+                  if (keyEvent.keyCode == 32) { // Space key
+                    for {
+                      _ <- IO.delay(keyEvent.preventDefault())
+                      _ <- dispatch(ToggleAll)
+                    } yield ()
+                  } else IO.unit
+              } yield ()
+            }
           )
         ),
         label("for" -> "toggle-all")(text("Mark all as complete")),
@@ -555,7 +579,21 @@ object TodoApp extends App[TodoModel, TodoMsg] {
             "type" -> "checkbox"
           ) ++ (if (todo.completed) Map("checked" -> "checked") else Map.empty),
           Map(
-            onChangeMsg(ToggleTodo(todo.id), dispatch)
+            onChangeMsg(ToggleTodo(todo.id), dispatch),
+            "keydown" -> { (event: org.scalajs.dom.Event) =>
+              for {
+                keyEvent <- IO.delay(
+                  event.asInstanceOf[org.scalajs.dom.KeyboardEvent]
+                )
+                _ <-
+                  if (keyEvent.keyCode == 32) { // Space key
+                    for {
+                      _ <- IO.delay(keyEvent.preventDefault())
+                      _ <- dispatch(ToggleTodo(todo.id))
+                    } yield ()
+                  } else IO.unit
+              } yield ()
+            }
           )
         ),
         label(
@@ -605,7 +643,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
               } yield ()
             },
             onBlurValue(
-              (text: String) => UpdateTodo(todo.id, text),
+              (text: String) => UpdateTodoIfEditing(todo.id, text),
               dispatch
             )
           )
