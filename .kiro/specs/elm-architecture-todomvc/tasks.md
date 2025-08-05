@@ -125,15 +125,17 @@
   - Write tests for all error conditions and edge cases
   - _Requirements: 9.4_
 
-- [ ] 16. Create comprehensive test suite
+- [ ] 16. Create comprehensive test suite and fix remaining E2E issues
   - [x] Write property-based tests for model invariants (unique IDs, valid states)
+  - [x] All Scala unit tests pass (109/109 tests passing)
+  - [ ] **Fix remaining E2E test failures** (CRITICAL - 9/57 tests still failing)
+    - **Root cause**: Event handling issues in browser environment causing user interactions to fail
+    - **Impact**: Adding multiple todos fails, checkbox toggling doesn't work, UI interactions timeout
+    - **Current status**: VDom event system implemented but browser integration has issues
+    - **Solution**: Debug and fix event handling in actual browser environment
   - [ ] Add integration tests for complete user workflows (add, edit, delete, filter)
   - [ ] Create performance tests for large todo lists and frequent updates
   - [ ] Implement browser compatibility tests for DOM operations
-  - [ ] **Fix VDom event handling system to make E2E tests pass** (CRITICAL)
-    - **Root cause**: VDom event system is incomplete - Events.scala contains placeholder implementations
-    - **Impact**: 51/60 E2E tests failing because user interactions don't trigger messages
-    - **Solution**: Complete the VDom event system with real DOM event capture and value extraction
   - [ ] Write tests for concurrent operations and race conditions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4_
 
@@ -170,11 +172,50 @@
   - Test that all TodoMVC interactions work in browser
   - _Requirements: 1.5, 2.4_
 
-- [x] 17.5 Verify E2E tests pass with fixed event system
-  - Run all E2E tests to ensure user interactions work
-  - Verify that adding todos via Enter key works
-  - Test that clicking checkboxes toggles todo completion
-  - Confirm that editing todos via double-click works
-  - Ensure all filter buttons and clear completed functionality works
-  - Achieve 100% E2E test pass rate (60/60 tests passing)
+- [ ] 17.5 Debug and fix remaining E2E test failures
+  - **Current status**: 9/57 E2E tests failing, 48/57 passing
+  - **Issues to fix**:
+    - Adding multiple todos only adds 2 out of 3 (timing/async issue)
+    - Checkbox toggling doesn't work (event not triggering model updates)
+    - Various UI interactions timeout (event handlers not properly attached)
+  - Debug event handling in browser environment using browser dev tools
+  - Fix async timing issues with todo addition
+  - Ensure checkbox change events properly dispatch ToggleTodo messages
+  - Verify all event listeners are properly attached to DOM elements
+  - Test each failing scenario individually and fix root causes
+  - Achieve 100% E2E test pass rate (57/57 tests passing)
   - _Requirements: 9.4_
+
+- [ ] 18. Investigate and fix specific E2E test failure patterns
+  - [ ] 18.1 Fix "should add multiple todos" test failure
+    - **Issue**: Only 2 out of 3 todos are being added when test tries to add 3
+    - **Root cause**: Likely async timing issue with rapid todo additions
+    - **Solution**: Debug the AddTodo message handling and ensure proper async processing
+    - Add proper waiting/debouncing for rapid user input
+    - Ensure each AddTodo message is fully processed before the next one
+    - _Requirements: 3.1, 3.2, 3.3_
+  
+  - [ ] 18.2 Fix checkbox toggling functionality
+    - **Issue**: Clicking todo checkboxes doesn't toggle completion status
+    - **Root cause**: onChange events not properly dispatching ToggleTodo messages
+    - **Solution**: Debug the checkbox event handling in browser
+    - Verify that onChange events are properly attached to checkbox elements
+    - Ensure ToggleTodo messages are being dispatched and processed
+    - Test that model updates are reflected in the DOM
+    - _Requirements: 4.1, 4.2, 4.3_
+  
+  - [ ] 18.3 Fix keyboard navigation test failures
+    - **Issue**: Space key on checkboxes doesn't toggle todos (all browsers)
+    - **Root cause**: Keyboard event handling not working for checkbox interactions
+    - **Solution**: Add proper keydown event handling for Space key on checkboxes
+    - Ensure keyboard accessibility for todo toggling
+    - Test that both click and keyboard interactions work
+    - _Requirements: 4.1, 9.4_
+  
+  - [ ] 18.4 Fix filter and clear completed functionality
+    - **Issue**: Tests timeout when trying to interact with todo items for filtering
+    - **Root cause**: Event handlers not properly attached to todo list items
+    - **Solution**: Debug event attachment in todo list rendering
+    - Ensure all todo item interactions (toggle, delete, edit) work properly
+    - Verify that filter buttons and clear completed button work
+    - _Requirements: 5.2, 6.1, 6.2, 7.1, 7.2, 7.3_
