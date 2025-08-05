@@ -125,97 +125,44 @@
   - Write tests for all error conditions and edge cases
   - _Requirements: 9.4_
 
-- [ ] 16. Create comprehensive test suite and fix remaining E2E issues
+- [ ] 16. Fix final E2E test failure and complete comprehensive test suite
   - [x] Write property-based tests for model invariants (unique IDs, valid states)
   - [x] All Scala unit tests pass (109/109 tests passing)
-  - [ ] **Fix remaining E2E test failures** (CRITICAL - 9/57 tests still failing)
-    - **Root cause**: Event handling issues in browser environment causing user interactions to fail
-    - **Impact**: Adding multiple todos fails, checkbox toggling doesn't work, UI interactions timeout
-    - **Current status**: VDom event system implemented but browser integration has issues
-    - **Solution**: Debug and fix event handling in actual browser environment
-  - [ ] Add integration tests for complete user workflows (add, edit, delete, filter)
-  - [ ] Create performance tests for large todo lists and frequent updates
-  - [ ] Implement browser compatibility tests for DOM operations
-  - [ ] Write tests for concurrent operations and race conditions
+  - [ ] **Fix final E2E test failure** (CRITICAL - 1/57 tests still failing)
+    - **Test**: "should toggle all todos" - Only 2 out of 3 todos are being added
+    - **Root cause**: Likely async timing issue with rapid todo additions in the test
+    - **Current status**: 56/57 E2E tests passing - significant improvement from previous 9 failures
+    - **Solution**: Debug the rapid todo addition sequence and ensure proper async processing
+  - [x] Add integration tests for complete user workflows (add, edit, delete, filter)
+  - [x] Create performance tests for large todo lists and frequent updates
+  - [x] Implement browser compatibility tests for DOM operations
+  - [x] Write tests for concurrent operations and race conditions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4_
 
-- [x] 17. Fix VDom event system for E2E test compatibility
-- [x] 17.1 Complete Events.scala implementation with real DOM event handling
-  - Replace placeholder onInput handler with real DOM event capture
-  - Implement proper value extraction from input events using event.target.value
-  - Replace placeholder onKeyDown handler with real keyCode detection
-  - Add proper event preventDefault and stopPropagation handling
-  - Ensure all event handlers properly dispatch messages to the Runtime
-  - _Requirements: 2.4, 9.4_
-
-- [x] 17.2 Fix VDom.attachEventListeners to work with message dispatching
-  - Modify attachEventListeners to accept message dispatch function
-  - Update event listener creation to properly dispatch TodoMsg messages
-  - Ensure event handlers have access to current model state when needed
-  - Add error handling for event dispatch failures
-  - Test that DOM events properly trigger model updates
-  - _Requirements: 2.4, 1.5_
-
-- [x] 17.3 Update TodoApp view to use working VDom events
-  - Remove placeholder event handlers from TodoApp view methods
-  - Replace custom attachEventListeners approach with working VDom events
-  - Ensure all user interactions (input, keydown, click, dblclick) work correctly
-  - Update event handlers to pass proper message constructors
-  - Test that Enter key on new-todo input dispatches AddTodo message
-  - _Requirements: 3.1, 4.1, 5.1, 6.1, 7.1_
-
-- [x] 17.4 Integrate fixed event system with Runtime
-  - Update Runtime to pass message dispatch function to VDom.attachEventListeners
-  - Ensure event listeners are attached after initial render and updates
-  - Remove redundant custom event attachment code from Runtime
-  - Add logging to verify event listeners are properly attached
-  - Test that all TodoMVC interactions work in browser
-  - _Requirements: 1.5, 2.4_
-
-- [x] 17.5 Debug and fix remaining E2E test failures
-  - **Current status**: 9/57 E2E tests failing, 48/57 passing
-  - **Issues to fix**:
-    - Adding multiple todos only adds 2 out of 3 (timing/async issue)
-    - Checkbox toggling doesn't work (event not triggering model updates)
-    - Various UI interactions timeout (event handlers not properly attached)
-  - Debug event handling in browser environment using browser dev tools
-  - Fix async timing issues with todo addition
-  - Ensure checkbox change events properly dispatch ToggleTodo messages
-  - Verify all event listeners are properly attached to DOM elements
-  - Test each failing scenario individually and fix root causes
-  - Achieve 100% E2E test pass rate (57/57 tests passing)
-  - _Requirements: 9.4_
-
-- [ ] 18. Investigate and fix specific E2E test failure patterns
-  - [ ] 18.1 Fix "should add multiple todos" test failure
-    - **Issue**: Only 2 out of 3 todos are being added when test tries to add 3
-    - **Root cause**: Likely async timing issue with rapid todo additions
-    - **Solution**: Debug the AddTodo message handling and ensure proper async processing
-    - Add proper waiting/debouncing for rapid user input
-    - Ensure each AddTodo message is fully processed before the next one
+- [ ] 17. Fix final E2E test failure: "should toggle all todos"
+  - [ ] 17.1 Debug rapid todo addition sequence
+    - **Issue**: Only 2 out of 3 todos are being added when test rapidly adds 3 todos
+    - **Root cause**: Likely async timing issue with rapid todo additions in the test
+    - **Investigation needed**: Check if AddTodo messages are being processed sequentially
+    - **Solution**: Ensure proper async processing of rapid user input
+    - Debug the AddTodo message handling pipeline in the Runtime
+    - Verify that each AddTodo message is fully processed before the next one
+    - Add proper queuing/debouncing if needed for rapid user input
+    - Test with manual rapid typing to reproduce the issue
     - _Requirements: 3.1, 3.2, 3.3_
   
-  - [ ] 18.2 Fix checkbox toggling functionality
-    - **Issue**: Clicking todo checkboxes doesn't toggle completion status
-    - **Root cause**: onChange events not properly dispatching ToggleTodo messages
-    - **Solution**: Debug the checkbox event handling in browser
-    - Verify that onChange events are properly attached to checkbox elements
-    - Ensure ToggleTodo messages are being dispatched and processed
-    - Test that model updates are reflected in the DOM
-    - _Requirements: 4.1, 4.2, 4.3_
+  - [ ] 17.2 Verify message processing order and timing
+    - **Investigation**: Check if messages are being dropped or processed out of order
+    - **Solution**: Add logging to track message processing in Runtime
+    - Ensure the message queue properly handles rapid message dispatch
+    - Verify that DOM updates complete before processing next message
+    - Test that the Runtime can handle burst message scenarios
+    - _Requirements: 1.5, 2.4_
   
-  - [ ] 18.3 Fix keyboard navigation test failures
-    - **Issue**: Space key on checkboxes doesn't toggle todos (all browsers)
-    - **Root cause**: Keyboard event handling not working for checkbox interactions
-    - **Solution**: Add proper keydown event handling for Space key on checkboxes
-    - Ensure keyboard accessibility for todo toggling
-    - Test that both click and keyboard interactions work
-    - _Requirements: 4.1, 9.4_
-  
-  - [ ] 18.4 Fix filter and clear completed functionality
-    - **Issue**: Tests timeout when trying to interact with todo items for filtering
-    - **Root cause**: Event handlers not properly attached to todo list items
-    - **Solution**: Debug event attachment in todo list rendering
-    - Ensure all todo item interactions (toggle, delete, edit) work properly
-    - Verify that filter buttons and clear completed button work
-    - _Requirements: 5.2, 6.1, 6.2, 7.1, 7.2, 7.3_
+  - [ ] 17.3 Fix async timing in todo addition workflow
+    - **Solution**: Ensure AddTodo message processing waits for DOM updates
+    - Verify that newTodoText is properly cleared after each addition
+    - Check that todo ID generation works correctly for rapid additions
+    - Ensure local storage operations don't interfere with rapid additions
+    - Test the complete add-todo workflow under rapid input conditions
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
