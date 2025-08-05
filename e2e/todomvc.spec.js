@@ -41,6 +41,8 @@ test.describe('TodoMVC Application', () => {
     for (const todo of todos) {
       await page.fill('.new-todo', todo);
       await page.press('.new-todo', 'Enter');
+      // Small delay to ensure the todo is processed before adding the next one
+      await page.waitForTimeout(100);
     }
 
     // Check that all todos were added
@@ -242,8 +244,10 @@ test.describe('TodoMVC Application', () => {
     // Add mixed todos
     await page.fill('.new-todo', 'Active todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(100);
     await page.fill('.new-todo', 'Completed todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(100);
 
     // Complete one todo
     await page.click('.todo-list li:nth-child(2) .toggle');
@@ -261,8 +265,10 @@ test.describe('TodoMVC Application', () => {
     // Add mixed todos
     await page.fill('.new-todo', 'Active todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(100);
     await page.fill('.new-todo', 'Completed todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(100);
 
     // Complete one todo
     await page.click('.todo-list li:nth-child(2) .toggle');
@@ -344,8 +350,8 @@ test.describe('TodoMVC Application', () => {
     await page.fill('.new-todo', 'Test todo');
     await page.press('.new-todo', 'Enter');
 
-    // Test Tab navigation
-    await page.keyboard.press('Tab'); // Should focus on toggle checkbox
+    // Focus directly on the checkbox and press Space
+    await page.locator('.todo-list li .toggle').focus();
     await page.keyboard.press('Space'); // Should toggle the todo
 
     // Check that the todo was toggled

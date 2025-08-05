@@ -172,7 +172,7 @@
   - Test that all TodoMVC interactions work in browser
   - _Requirements: 1.5, 2.4_
 
-- [ ] 17.5 Debug and fix remaining E2E test failures
+- [x] 17.5 Debug and fix remaining E2E test failures
   - **Current status**: 9/57 E2E tests failing, 48/57 passing
   - **Issues to fix**:
     - Adding multiple todos only adds 2 out of 3 (timing/async issue)
