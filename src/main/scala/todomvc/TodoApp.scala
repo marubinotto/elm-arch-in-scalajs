@@ -6,6 +6,7 @@ import cats.effect.unsafe.implicits.global
 import com.softwaremill.quicklens._
 import vdom.VNode
 import todomvc.{All, Active, Completed}
+import scala.concurrent.duration._
 
 /** TodoMVC application implementing the Elm Architecture pattern
   */
@@ -400,6 +401,7 @@ object TodoApp extends App[TodoModel, TodoMsg] {
               _ <-
                 if (keyEvent.keyCode == 13) { // Enter key
                   for {
+                    _ <- IO.delay(keyEvent.preventDefault())
                     target <- IO.delay(
                       event.target
                         .asInstanceOf[org.scalajs.dom.HTMLInputElement]
@@ -408,9 +410,12 @@ object TodoApp extends App[TodoModel, TodoMsg] {
                     _ <-
                       if (text.nonEmpty) {
                         for {
-                          _ <- IO.delay(keyEvent.preventDefault())
-                          _ <- dispatch(AddTodo(text))
+                          // Clear the input field immediately to prevent duplicate submissions
                           _ <- IO.delay(target.value = "")
+                          // Small delay to ensure DOM is updated
+                          _ <- IO.sleep(1.millis)
+                          // Then dispatch the AddTodo message
+                          _ <- dispatch(AddTodo(text))
                         } yield ()
                       } else IO.unit
                   } yield ()

@@ -139,8 +139,8 @@
   - [x] Write tests for concurrent operations and race conditions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 17. Fix final E2E test failure: "should toggle all todos"
-  - [ ] 17.1 Debug rapid todo addition sequence
+- [x] 17. Fix final E2E test failure: "should toggle all todos"
+  - [x] 17.1 Debug rapid todo addition sequence
     - **Issue**: Only 2 out of 3 todos are being added when test rapidly adds 3 todos
     - **Root cause**: Likely async timing issue with rapid todo additions in the test
     - **Investigation needed**: Check if AddTodo messages are being processed sequentially
@@ -151,7 +151,7 @@
     - Test with manual rapid typing to reproduce the issue
     - _Requirements: 3.1, 3.2, 3.3_
   
-  - [ ] 17.2 Verify message processing order and timing
+  - [x] 17.2 Verify message processing order and timing
     - **Investigation**: Check if messages are being dropped or processed out of order
     - **Solution**: Add logging to track message processing in Runtime
     - Ensure the message queue properly handles rapid message dispatch
@@ -159,7 +159,7 @@
     - Test that the Runtime can handle burst message scenarios
     - _Requirements: 1.5, 2.4_
   
-  - [ ] 17.3 Fix async timing in todo addition workflow
+  - [x] 17.3 Fix async timing in todo addition workflow
     - **Solution**: Ensure AddTodo message processing waits for DOM updates
     - Verify that newTodoText is properly cleared after each addition
     - Check that todo ID generation works correctly for rapid additions

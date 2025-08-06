@@ -177,6 +177,8 @@ test.describe('TodoMVC Application', () => {
     for (const todo of todos) {
       await page.fill('.new-todo', todo);
       await page.press('.new-todo', 'Enter');
+      // Small delay to ensure the todo is processed before adding the next one
+      await page.waitForTimeout(50);
     }
 
     // Toggle all todos as completed

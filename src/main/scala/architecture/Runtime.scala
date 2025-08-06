@@ -178,7 +178,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           } catch {
             case error: Throwable =>
               org.scalajs.dom.console.error(
-                s"Update function error for message $msg: ${error.getMessage}"
+                s"[Runtime] Update function error for message $msg: ${error.getMessage}"
               )
               // Return unchanged model with no command on error
               Update(currentModel, Cmd.none)
