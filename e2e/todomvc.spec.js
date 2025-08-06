@@ -42,7 +42,7 @@ test.describe('TodoMVC Application', () => {
       await page.fill('.new-todo', todo);
       await page.press('.new-todo', 'Enter');
       // Small delay to ensure the todo is processed before adding the next one
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(200);
     }
 
     // Check that all todos were added
@@ -178,7 +178,7 @@ test.describe('TodoMVC Application', () => {
       await page.fill('.new-todo', todo);
       await page.press('.new-todo', 'Enter');
       // Small delay to ensure the todo is processed before adding the next one
-      await page.waitForTimeout(50);
+      await page.waitForTimeout(200);
     }
 
     // Toggle all todos as completed
@@ -203,15 +203,23 @@ test.describe('TodoMVC Application', () => {
   test('should clear completed todos', async ({ page }) => {
     const todos = ['Active todo', 'Completed todo 1', 'Completed todo 2'];
 
-    // Add todos
+    // Add todos with proper waiting
     for (const todo of todos) {
       await page.fill('.new-todo', todo);
       await page.press('.new-todo', 'Enter');
+      // Wait for the todo to be added before adding the next one
+      await page.waitForTimeout(200);
     }
+
+    // Ensure all todos are added
+    await expect(page.locator('.todo-list li')).toHaveCount(3);
 
     // Complete the last two todos
     await page.click('.todo-list li:nth-child(2) .toggle');
     await page.click('.todo-list li:nth-child(3) .toggle');
+
+    // Wait for the clear completed button to appear
+    await expect(page.locator('.clear-completed')).toBeVisible();
 
     // Clear completed todos
     await page.click('.clear-completed');
@@ -228,8 +236,10 @@ test.describe('TodoMVC Application', () => {
     // Add mixed todos
     await page.fill('.new-todo', 'Active todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(200);
     await page.fill('.new-todo', 'Completed todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(200);
 
     // Complete one todo
     await page.click('.todo-list li:nth-child(2) .toggle');
@@ -246,10 +256,10 @@ test.describe('TodoMVC Application', () => {
     // Add mixed todos
     await page.fill('.new-todo', 'Active todo');
     await page.press('.new-todo', 'Enter');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
     await page.fill('.new-todo', 'Completed todo');
     await page.press('.new-todo', 'Enter');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
     // Complete one todo
     await page.click('.todo-list li:nth-child(2) .toggle');
@@ -267,10 +277,10 @@ test.describe('TodoMVC Application', () => {
     // Add mixed todos
     await page.fill('.new-todo', 'Active todo');
     await page.press('.new-todo', 'Enter');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
     await page.fill('.new-todo', 'Completed todo');
     await page.press('.new-todo', 'Enter');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(200);
 
     // Complete one todo
     await page.click('.todo-list li:nth-child(2) .toggle');
@@ -290,6 +300,13 @@ test.describe('TodoMVC Application', () => {
     // Add a todo
     await page.fill('.new-todo', todoText);
     await page.press('.new-todo', 'Enter');
+
+    // Wait for the todo to appear and be saved
+    await expect(page.locator('.todo-list li')).toHaveCount(1);
+    await expect(page.locator('.todo-list li label')).toHaveText(todoText);
+
+    // Wait a bit for localStorage save to complete
+    await page.waitForTimeout(500);
 
     // Reload the page
     await page.reload();
@@ -335,11 +352,13 @@ test.describe('TodoMVC Application', () => {
     // Add one todo
     await page.fill('.new-todo', 'Single todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(200);
     await expect(page.locator('.todo-count')).toHaveText('1 item left');
 
     // Add another todo
     await page.fill('.new-todo', 'Second todo');
     await page.press('.new-todo', 'Enter');
+    await page.waitForTimeout(200);
     await expect(page.locator('.todo-count')).toHaveText('2 items left');
 
     // Complete one todo
