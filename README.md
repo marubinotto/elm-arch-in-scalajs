@@ -213,7 +213,7 @@ override def subscriptions(model: TodoModel): Sub[TodoMsg] = {
 1. **Clone and install dependencies:**
    ```bash
    git clone <repository-url>
-   cd elm-architecture-todomvc
+   cd elm-arch-in-scalajs
    npm install
    ```
 

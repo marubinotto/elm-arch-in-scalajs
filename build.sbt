@@ -4,7 +4,7 @@ ThisBuild / scalaVersion := "3.7.2"
 lazy val root = (project in file("."))
   .enablePlugins(ScalaJSPlugin)
   .settings(
-    name := "elm-architecture-todomvc",
+    name := "elm-arch-in-scalajs",
 
     // Scala.js configuration
     scalaJSUseMainModuleInitializer := true,
