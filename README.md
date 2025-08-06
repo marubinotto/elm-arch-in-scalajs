@@ -20,6 +20,29 @@ The Elm Architecture is a pattern for architecting interactive programs that emp
 
 ### Architecture Components
 
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Elm Architecture Flow                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────┐    Msg     ┌────────┐    Model    ┌─────────┐  │
+│  │  View   │ ────────▶  │ Update │ ──────────▶ │  Model  │  │
+│  │         │            │        │             │         │  │
+│  └─────────┘            └────────┘             └─────────┘  │
+│       ▲                      │                      │       │
+│       │                      │                      │       │
+│       │                      ▼                      │       │
+│       │                 ┌─────────┐                 │       │
+│       │                 │   Cmd   │                 │       │
+│       │                 │ (Side   │                 │       │
+│       │                 │Effects) │                 │       │
+│       │                 └─────────┘                 │       │
+│       │                                             │       │
+│       └─────────────────────────────────────────────┘       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
 The Elm Architecture consists of four main components:
 
 #### Model
@@ -83,6 +106,52 @@ def view(model: TodoModel): VNode = {
 
 ## Elm Architecture with Scala.js and Cats Effect
 
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    TodoMVC Data Flow Example                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  User clicks "Add Todo"                                             │
+│           │                                                         │
+│           ▼                                                         │
+│  ┌─────────────────┐                                               │
+│  │ AddTodo("Buy    │ ──┐                                           │
+│  │ groceries")     │   │                                           │
+│  └─────────────────┘   │                                           │
+│                        │                                           │
+│                        ▼                                           │
+│  ┌─────────────────────────────────────┐                          │
+│  │ update(AddTodo("Buy groceries"),    │                          │
+│  │        currentModel)                │                          │
+│  │                                     │                          │
+│  │ Returns:                            │                          │
+│  │ • New model with added todo         │                          │
+│  │ • SaveToStorage command             │                          │
+│  └─────────────────────────────────────┘                          │
+│                        │                                           │
+│                        ▼                                           │
+│  ┌─────────────────────────────────────┐                          │
+│  │ New Model:                          │                          │
+│  │ TodoModel(                          │                          │
+│  │   todos = [                         │                          │
+│  │     Todo(1, "Buy groceries", false) │                          │
+│  │   ],                                │                          │
+│  │   newTodoText = "",                 │                          │
+│  │   ...                               │                          │
+│  │ )                                   │                          │
+│  └─────────────────────────────────────┘                          │
+│                        │                                           │
+│                        ▼                                           │
+│  ┌─────────────────────────────────────┐                          │
+│  │ View re-renders with new model      │                          │
+│  │ • Todo list shows new item          │                          │
+│  │ • Input field is cleared            │                          │
+│  │ • Storage command executes          │                          │
+│  └─────────────────────────────────────┘                          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
 This implementation adapts the Elm Architecture to leverage Scala.js and Cats Effect's powerful abstractions:
 
 ### Cats Effect Integration
@@ -110,6 +179,37 @@ private def saveTodosToStorage(todos: List[Todo]): IO[TodoMsg] = {
 ```
 
 #### Concurrent Runtime System
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Runtime System Architecture                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
+│  │   Message   │    │   Model     │    │ Subscription│         │
+│  │  Processor  │    │  Renderer   │    │   Manager   │         │
+│  │             │    │             │    │             │         │
+│  │ Processes   │    │ Updates DOM │    │ Handles     │         │
+│  │ messages    │    │ when model  │    │ intervals,  │         │
+│  │ from queue  │    │ changes     │    │ events, etc │         │
+│  └─────────────┘    └─────────────┘    └─────────────┘         │
+│         │                   │                   │              │
+│         │                   │                   │              │
+│         ▼                   ▼                   ▼              │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              Shared State (Refs & Queues)              │   │
+│  │                                                         │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │   │
+│  │  │ Model Ref   │  │ Message     │  │Subscription │     │   │
+│  │  │ (Current    │  │ Queue       │  │ Ref         │     │   │
+│  │  │ State)      │  │ (Pending    │  │ (Active     │     │   │
+│  │  │             │  │ Messages)   │  │ Subs)       │     │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘     │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 The runtime system uses Cats Effect's concurrency primitives:
 
 ```scala
@@ -163,6 +263,47 @@ Strong typing prevents runtime errors:
 - Type parameters ensure message/model consistency
 
 ### Virtual DOM Implementation
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Virtual DOM Lifecycle                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Model Changes                                                  │
+│        │                                                        │
+│        ▼                                                        │
+│  ┌─────────────┐                                               │
+│  │ view(model) │ ──────────────┐                               │
+│  │ function    │               │                               │
+│  │ called      │               ▼                               │
+│  └─────────────┘     ┌─────────────────┐                       │
+│                      │   New VNode     │                       │
+│                      │     Tree        │                       │
+│                      └─────────────────┘                       │
+│                               │                                 │
+│                               ▼                                 │
+│  ┌─────────────┐     ┌─────────────────┐                       │
+│  │ Old VNode   │ ──► │ diff(old, new)  │                       │
+│  │    Tree     │     │   Algorithm     │                       │
+│  └─────────────┘     └─────────────────┘                       │
+│                               │                                 │
+│                               ▼                                 │
+│                      ┌─────────────────┐                       │
+│                      │  Patch List     │                       │
+│                      │ • Add Element   │                       │
+│                      │ • Remove Element│                       │
+│                      │ • Update Attrs  │                       │
+│                      │ • Update Text   │                       │
+│                      └─────────────────┘                       │
+│                               │                                 │
+│                               ▼                                 │
+│                      ┌─────────────────┐                       │
+│                      │ Apply Patches   │                       │
+│                      │   to Real DOM   │                       │
+│                      └─────────────────┘                       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 Custom Virtual DOM system optimized for the Elm Architecture:
 
@@ -251,6 +392,37 @@ npm run test:e2e:ui       # Run with Playwright UI
 ```
 
 ### Project Structure
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Module Dependencies                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────┐                                               │
+│  │    Main     │ ──────────────┐                               │
+│  │ (Entry      │               │                               │
+│  │  Point)     │               ▼                               │
+│  └─────────────┘     ┌─────────────────┐                       │
+│                      │    TodoApp      │                       │
+│                      │ (Application    │                       │
+│                      │    Logic)       │                       │
+│                      └─────────────────┘                       │
+│                               │                                 │
+│                               ▼                                 │
+│  ┌─────────────┐     ┌─────────────────┐     ┌─────────────┐   │
+│  │ Architecture│ ◄── │   TodoMVC       │ ──► │    VDom     │   │
+│  │  (Runtime   │     │  (Models &      │     │ (Virtual    │   │
+│  │   System)   │     │  Messages)      │     │   DOM)      │   │
+│  └─────────────┘     └─────────────────┘     └─────────────┘   │
+│                               │                                 │
+│                               ▼                                 │
+│                      ┌─────────────────┐                       │
+│                      │  LocalStorage   │                       │
+│                      │ (Persistence)   │                       │
+│                      └─────────────────┘                       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ```
 ├── build.sbt                          # SBT build configuration
