@@ -23,6 +23,8 @@ The implementation leverages Scala.js for type safety and functional programming
 └─────────────────────────────────────────────────────────────┘
 ```
 
+**Architecture Improvements**: The view function now takes an optional dispatch parameter, eliminating the need for separate `setDispatch` methods and making the architecture more functional and composable. The Runtime passes the dispatch function directly to the view when rendering interactive elements.
+
 ### Layer Architecture
 
 ```
@@ -54,7 +56,7 @@ case class Update[Model, Msg](model: Model, cmd: Cmd[Msg])
 trait App[Model, Msg] {
   def init: (Model, Cmd[Msg])
   def update(msg: Msg, model: Model): Update[Model, Msg]
-  def view(model: Model): VNode
+  def view(model: Model, dispatch: Option[Msg => IO[Unit]] = None): VNode
   def subscriptions(model: Model): Sub[Msg] = Sub.none
 }
 
@@ -127,7 +129,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
     // Start all concurrent processes
     _ <- List(
       processMessages(modelRef, msgQueue, subRef),
-      renderLoop(modelRef, container),
+      renderLoop(modelRef, container, msgQueue),
       subscriptionLoop(subRef, msgQueue)
     ).parSequence.start
     
@@ -136,7 +138,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
   } yield ()
   
   private def processMessages(modelRef: Ref[IO, Model], msgQueue: Queue[IO, Msg], subRef: Ref[IO, Sub[Msg]]): IO[Unit]
-  private def renderLoop(modelRef: Ref[IO, Model], container: Element): IO[Unit]
+  private def renderLoop(modelRef: Ref[IO, Model], container: Element, msgQueue: Queue[IO, Msg]): IO[Unit]
   private def subscriptionLoop(subRef: Ref[IO, Sub[Msg]], msgQueue: Queue[IO, Msg]): IO[Unit]
   private def executeCmd(cmd: Cmd[Msg], msgQueue: Queue[IO, Msg]): IO[Unit]
   
@@ -227,6 +229,27 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     // ... other cases
   }
   
+  def view(model: TodoModel, dispatch: Option[TodoMsg => IO[Unit]] = None): VNode = {
+    // Render the current state as virtual DOM
+    // Use dispatch function for interactive elements when provided
+    div("class" -> "todoapp")(
+      dispatch match {
+        case Some(dispatchFn) =>
+          List(
+            renderHeaderWithDispatch(model, dispatchFn),
+            renderMainWithDispatch(model, dispatchFn),
+            renderFooterWithDispatch(model, dispatchFn)
+          )
+        case None =>
+          List(
+            renderHeader(model),
+            renderMain(model),
+            renderFooter(model)
+          )
+      }*
+    )
+  }
+
   def subscriptions(model: TodoModel): Sub[TodoMsg] = {
     // Auto-save every 30 seconds if there are changes
     if (model.todos.nonEmpty) {

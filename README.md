@@ -87,15 +87,16 @@ def update(msg: TodoMsg, model: TodoModel): Update[TodoModel, TodoMsg] = {
 ```
 
 #### View
-The **View** function is a pure function that takes the current model and returns a virtual DOM representation of the user interface.
+The **View** function is a pure function that takes the current model and an optional dispatch function, returning a virtual DOM representation of the user interface.
 
 ```scala
-def view(model: TodoModel): VNode = {
+def view(model: TodoModel, dispatch: Option[TodoMsg => IO[Unit]] = None): VNode = {
   // Render the current state as virtual DOM
+  // Use dispatch function for interactive elements when provided
   div("class" -> "todoapp")(
-    renderHeader(model),
-    renderMain(model),
-    renderFooter(model)
+    renderHeader(model, dispatch),
+    renderMain(model, dispatch),
+    renderFooter(model, dispatch)
   )
 }
 ```

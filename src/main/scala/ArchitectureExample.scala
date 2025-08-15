@@ -26,7 +26,10 @@ object ArchitectureExample {
             Update(model.copy(value = newValue), Cmd.none)
         }
 
-      def view(model: ExampleModel): VNode =
+      def view(
+          model: ExampleModel,
+          dispatch: Option[ExampleMsg => IO[Unit]] = None
+      ): VNode =
         Html.div()(Html.text(s"Value: ${model.value}"))
     }
 

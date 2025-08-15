@@ -11,7 +11,7 @@ package object architecture {
   trait App[Model, Msg] {
     def init: (Model, Cmd[Msg])
     def update(msg: Msg, model: Model): Update[Model, Msg]
-    def view(model: Model): vdom.VNode
+    def view(model: Model, dispatch: Option[Msg => IO[Unit]] = None): vdom.VNode
     def subscriptions(model: Model): Sub[Msg] = Sub.none
   }
 

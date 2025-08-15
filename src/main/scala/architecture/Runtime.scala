@@ -56,17 +56,6 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       // Store message queue for dispatch method
       _ <- IO.delay { msgQueueOpt = Some(msgQueue) }
 
-      // Set up dispatch function for the app if it supports it
-      _ <- IO.delay {
-        app match {
-          case todoApp: todomvc.TodoApp.type =>
-            todoApp.setDispatch { msg =>
-              msgQueue.offer(msg)
-            }
-          case _ => // Other apps don't need this
-        }
-      }
-
       // Start all concurrent processes with error handling
       _ <- IO.delay(
         org.scalajs.dom.console.log("[Runtime] Starting concurrent processes")
@@ -267,23 +256,13 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
     for {
       currentModel <- modelRef.get
 
-      // Use viewWithDispatch if available, otherwise fall back to regular view
-      newVNode = app match {
-        case todoApp: todomvc.TodoApp.type =>
-          msgQueueOpt match {
-            case Some(msgQueue) =>
-              val dispatch = (msg: todomvc.TodoMsg) => msgQueue.offer(msg)
-              todoApp
-                .viewWithDispatch(
-                  currentModel.asInstanceOf[todomvc.TodoModel],
-                  dispatch
-                )
-                .asInstanceOf[VNode]
-            case None =>
-              app.view(currentModel)
-          }
-        case _ =>
-          app.view(currentModel)
+      // Use view with optional dispatch function
+      newVNode = msgQueueOpt match {
+        case Some(msgQueue) =>
+          val dispatch = (msg: Msg) => msgQueue.offer(msg)
+          app.view(currentModel, Some(dispatch))
+        case None =>
+          app.view(currentModel, None)
       }
 
       currentVNodeOpt <- currentVNodeRef.get
@@ -355,24 +334,13 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           // Normal view rendering with error boundary
           IO.delay {
             try {
-              // Use viewWithDispatch if available, otherwise fall back to regular view
-              app match {
-                case todoApp: todomvc.TodoApp.type =>
-                  msgQueueOpt match {
-                    case Some(msgQueue) =>
-                      val dispatch =
-                        (msg: todomvc.TodoMsg) => msgQueue.offer(msg)
-                      todoApp
-                        .viewWithDispatch(
-                          currentModel.asInstanceOf[todomvc.TodoModel],
-                          dispatch
-                        )
-                        .asInstanceOf[VNode]
-                    case None =>
-                      app.view(currentModel)
-                  }
-                case _ =>
-                  app.view(currentModel)
+              // Use view with optional dispatch function
+              msgQueueOpt match {
+                case Some(msgQueue) =>
+                  val dispatch = (msg: Msg) => msgQueue.offer(msg)
+                  app.view(currentModel, Some(dispatch))
+                case None =>
+                  app.view(currentModel, None)
               }
             } catch {
               case error: Throwable =>

@@ -285,42 +285,34 @@ object TodoApp extends App[TodoModel, TodoMsg] {
     *
     * @param model
     *   The current model state
-    * @return
-    *   Virtual DOM representation of the UI
-    */
-  def view(model: TodoModel): VNode = {
-    import vdom.Html._
-
-    // Since we can't create fragments, we'll create a div that acts as a container
-    // but we'll make sure the CSS and structure work correctly
-    div("style" -> "display: contents;")(
-      renderHeader(model),
-      renderMain(model),
-      renderFooter(model)
-    )
-  }
-
-  /** Render the current model as a virtual DOM tree with message dispatch
-    *
-    * @param model
-    *   The current model state
     * @param dispatch
-    *   Function to dispatch messages
+    *   Optional function to dispatch messages for interactive elements
     * @return
     *   Virtual DOM representation of the UI
     */
-  def viewWithDispatch(
+  override def view(
       model: TodoModel,
-      dispatch: TodoMsg => IO[Unit]
+      dispatch: Option[TodoMsg => IO[Unit]] = None
   ): VNode = {
     import vdom.Html._
 
     // Since we can't create fragments, we'll create a div that acts as a container
     // but we'll make sure the CSS and structure work correctly
     div("style" -> "display: contents;")(
-      renderHeaderWithDispatch(model, dispatch),
-      renderMainWithDispatch(model, dispatch),
-      renderFooterWithDispatch(model, dispatch)
+      dispatch match {
+        case Some(dispatchFn) =>
+          List(
+            renderHeaderWithDispatch(model, dispatchFn),
+            renderMainWithDispatch(model, dispatchFn),
+            renderFooterWithDispatch(model, dispatchFn)
+          )
+        case None =>
+          List(
+            renderHeader(model),
+            renderMain(model),
+            renderFooter(model)
+          )
+      }*
     )
   }
 
@@ -772,19 +764,6 @@ object TodoApp extends App[TodoModel, TodoMsg] {
         )
       )(text(filter.displayName))
     )
-  }
-
-  // Global dispatch function - will be set by the runtime
-  private var dispatchFn: Option[TodoMsg => IO[Unit]] = None
-
-  /** Set the dispatch function (called by the runtime) */
-  def setDispatch(dispatch: TodoMsg => IO[Unit]): Unit = {
-    dispatchFn = Some(dispatch)
-  }
-
-  /** Safely dispatch a message */
-  private def safeDispatch(msg: TodoMsg): IO[Unit] = {
-    dispatchFn.map(_(msg)).getOrElse(IO.unit)
   }
 
   // Private helper functions for side effects
