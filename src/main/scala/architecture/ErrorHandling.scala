@@ -94,11 +94,7 @@ object ErrorRecovery {
   ): IO[A] = {
     io.handleErrorWith { error =>
       val logAction = if (logError) {
-        IO.delay(
-          dom.console.error(
-            s"Error occurred, using fallback: ${error.getMessage}"
-          )
-        )
+        IO.println(s"Error occurred, using fallback: ${error.getMessage}")
       } else IO.unit
 
       logAction *> IO.pure(fallback)
@@ -113,11 +109,7 @@ object ErrorRecovery {
   ): IO[A] = {
     io.handleErrorWith { error =>
       val logAction = if (logError) {
-        IO.delay(
-          dom.console.error(
-            s"Error occurred, trying fallback: ${error.getMessage}"
-          )
-        )
+        IO.println(s"Error occurred, trying fallback: ${error.getMessage}")
       } else IO.unit
 
       logAction *> fallback
@@ -137,10 +129,8 @@ object ErrorRecovery {
           IO.raiseError(error)
         } else {
           val delay = baseDelay * math.pow(2, attempt).toLong
-          IO.delay(
-            dom.console.warn(
-              s"Attempt ${attempt + 1} failed, retrying in ${delay.toMillis}ms: ${error.getMessage}"
-            )
+          IO.println(
+            s"Attempt ${attempt + 1} failed, retrying in ${delay.toMillis}ms: ${error.getMessage}"
           ) *>
             IO.sleep(
               scala.concurrent.duration
@@ -165,14 +155,12 @@ object ErrorRecovery {
 
   /** Default error handler that logs to console */
   def defaultErrorHandler(error: Throwable): IO[Unit] = {
-    IO.delay {
-      error match {
-        case appError: AppError =>
-          dom.console.error(s"Application Error: ${appError.message}")
-        // In a real app, you might show a user notification here
-        case _ =>
-          dom.console.error(s"Unexpected Error: ${error.getMessage}")
-      }
+    error match {
+      case appError: AppError =>
+        IO.println(s"Application Error: ${appError.message}")
+      // In a real app, you might show a user notification here
+      case _ =>
+        IO.println(s"Unexpected Error: ${error.getMessage}")
     }
   }
 
@@ -185,16 +173,10 @@ object ErrorRecovery {
     validator(value) match {
       case Right(validValue) =>
         action(validValue).handleErrorWith { error =>
-          IO.delay(
-            dom.console.error(
-              s"Action failed after validation: ${error.getMessage}"
-            )
-          )
+          IO.println(s"Action failed after validation: ${error.getMessage}")
         }
       case Left(validationError) =>
-        IO.delay(
-          dom.console.warn(s"Validation failed: ${validationError.userMessage}")
-        )
+        IO.println(s"Validation failed: ${validationError.userMessage}")
     }
   }
 }

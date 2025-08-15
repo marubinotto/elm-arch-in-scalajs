@@ -92,7 +92,6 @@ object LocalStorage {
             case Some(jsonString) =>
               IO.delay {
                 if (jsonString.trim.isEmpty) {
-                  dom.console.warn("Empty JSON string in localStorage")
                   List.empty[Todo]
                 } else {
                   TodoJson.parseTodos(jsonString) match {
@@ -101,15 +100,9 @@ object LocalStorage {
                       TodoValidation.validateTodoList(todos) match {
                         case Right(validTodos) => validTodos
                         case Left(error) =>
-                          dom.console.error(
-                            s"Invalid todos in localStorage: ${error.userMessage}"
-                          )
                           List.empty[Todo]
                       }
                     case Failure(error) =>
-                      dom.console.error(
-                        s"Failed to parse todos from localStorage: ${error.getMessage}"
-                      )
                       // Try to recover by clearing corrupted data (fire and forget)
                       import cats.effect.unsafe.implicits.global
                       clearTodos.attempt.void.unsafeRunAndForget()
@@ -117,10 +110,8 @@ object LocalStorage {
                   }
                 }
               }.handleErrorWith { error =>
-                IO.delay(
-                  dom.console.error(
-                    s"Error processing todos from localStorage: ${error.getMessage}"
-                  )
+                IO.println(
+                  s"Error processing todos from localStorage: ${error.getMessage}"
                 ) *>
                   IO.pure(List.empty[Todo])
               }
@@ -130,10 +121,7 @@ object LocalStorage {
         }
       }
       .handleErrorWith { error =>
-        IO.delay(
-          dom.console
-            .error(s"Critical error loading todos: ${error.getMessage}")
-        ) *>
+        IO.println(s"Critical error loading todos: ${error.getMessage}") *>
           IO.pure(List.empty[Todo])
       }
   }
@@ -149,18 +137,14 @@ object LocalStorage {
     // First validate the todos
     TodoValidation.validateTodoList(todos) match {
       case Left(error) =>
-        IO.delay(
-          dom.console.error(s"Cannot save invalid todos: ${error.userMessage}")
-        )
+        IO.println(s"Cannot save invalid todos: ${error.userMessage}")
       case Right(validTodos) =>
         // Check if localStorage is available
         isAvailable
           .flatMap { available =>
             if (!available) {
-              IO.delay(
-                dom.console.warn(
-                  "localStorage is not available, todos will not be persisted"
-                )
+              IO.println(
+                "localStorage is not available, todos will not be persisted"
               )
             } else {
               IO.delay {
@@ -168,10 +152,7 @@ object LocalStorage {
               }.flatMap { jsonString =>
                 // Check if JSON is reasonable size (< 5MB)
                 if (jsonString.length > 5 * 1024 * 1024) {
-                  IO.delay(
-                    dom.console
-                      .error("Todo data is too large to save to localStorage")
-                  )
+                  IO.println("Todo data is too large to save to localStorage")
                 } else {
                   setItem(TODOS_KEY, jsonString).handleErrorWith { error =>
                     // Try to handle quota exceeded error
@@ -180,42 +161,30 @@ object LocalStorage {
                         "QuotaExceededError"
                       ) || error.getMessage.contains("quota")
                     ) {
-                      IO.delay(
-                        dom.console.error(
-                          "localStorage quota exceeded, cannot save todos"
-                        )
+                      IO.println(
+                        "localStorage quota exceeded, cannot save todos"
                       ) *>
                         // Try to clear some space by removing old data
                         clearTodos *>
                         setItem(TODOS_KEY, jsonString).handleErrorWith { _ =>
-                          IO.delay(
-                            dom.console.error(
-                              "Failed to save todos even after clearing storage"
-                            )
+                          IO.println(
+                            "Failed to save todos even after clearing storage"
                           )
                         }
                     } else {
-                      IO.delay(
-                        dom.console.error(
-                          s"Failed to save todos to localStorage: ${error.getMessage}"
-                        )
+                      IO.println(
+                        s"Failed to save todos to localStorage: ${error.getMessage}"
                       )
                     }
                   }
                 }
               }.handleErrorWith { error =>
-                IO.delay(
-                  dom.console
-                    .error(s"Failed to serialize todos: ${error.getMessage}")
-                )
+                IO.println(s"Failed to serialize todos: ${error.getMessage}")
               }
             }
           }
           .handleErrorWith { error =>
-            IO.delay(
-              dom.console
-                .error(s"Critical error saving todos: ${error.getMessage}")
-            )
+            IO.println(s"Critical error saving todos: ${error.getMessage}")
           }
     }
   }

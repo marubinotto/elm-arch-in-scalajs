@@ -57,40 +57,31 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       _ <- IO.delay { msgQueueOpt = Some(msgQueue) }
 
       // Start all concurrent processes with error handling
-      _ <- IO.delay(
-        org.scalajs.dom.console.log("[Runtime] Starting concurrent processes")
-      )
+      _ <- IO.println("[Runtime] Starting concurrent processes")
       messageProcessor <- processMessagesWithErrorHandling(
         modelRef,
         msgQueue,
         subRef,
         errorRef
       ).start
-      _ <- IO.delay(
-        org.scalajs.dom.console.log("[Runtime] Message processor started")
-      )
+      _ <- IO.println("[Runtime] Message processor started")
       renderer <- renderLoopWithErrorHandling(
         modelRef,
         container,
         currentVNodeRef,
         errorRef
       ).start
-      _ <- IO.delay(org.scalajs.dom.console.log("[Runtime] Renderer started"))
+      _ <- IO.println("[Runtime] Renderer started")
       subscriptionManager <- subscriptionLoopWithErrorHandling(
         subRef,
         msgQueue,
         errorRef
       ).start
-      _ <- IO.delay(
-        org.scalajs.dom.console.log("[Runtime] Subscription manager started")
-      )
+      _ <- IO.println("[Runtime] Subscription manager started")
 
       // Execute initial command with error handling
       _ <- executeCmd(initialCmd, msgQueue).handleErrorWith { error =>
-        IO.delay(
-          org.scalajs.dom.console
-            .error(s"Initial command execution failed: ${error.getMessage}")
-        )
+        IO.println(s"Initial command execution failed: ${error.getMessage}")
       }
 
       // Store fiber references for potential cleanup (simplified for now)
@@ -100,9 +91,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
     // Wrap entire startup in error recovery
     ErrorRecovery.withFallbackIO(
       startupIO,
-      IO.delay(
-        org.scalajs.dom.console.error("Runtime startup failed completely")
-      ),
+      IO.println("Runtime startup failed completely"),
       logError = true
     )
   }
@@ -180,20 +169,13 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
 
         // Execute command with error handling
         _ <- executeCmd(update.cmd, msgQueue).handleErrorWith { error =>
-          IO.delay(
-            org.scalajs.dom.console.error(
-              s"Command execution failed: ${error.getMessage}"
-            )
-          )
+          IO.println(s"Command execution failed: ${error.getMessage}")
         }
 
         // Update subscriptions with error handling
         newSubs <- IO.delay(app.subscriptions(validatedModel)).handleErrorWith {
           error =>
-            IO.delay(
-              org.scalajs.dom.console
-                .error(s"Subscription update failed: ${error.getMessage}")
-            ) *>
+            IO.println(s"Subscription update failed: ${error.getMessage}") *>
               IO.pure(Sub.none)
         }
         _ <- subRef.set(newSubs)
@@ -212,11 +194,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           Some(error)
         )
         errorRef.set(Some(appError)) *>
-          IO.delay(
-            org.scalajs.dom.console.error(
-              s"Message processing error: ${appError.message}"
-            )
-          )
+          IO.println(s"Message processing error: ${appError.message}")
       }
     }.foreverM
   }
@@ -271,18 +249,12 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
         case None =>
           // Initial render
           for {
-            _ <- IO.delay(
-              org.scalajs.dom.console.log(
-                "[Runtime] Initial render with VDom events"
-              )
-            )
+            _ <- IO.println("[Runtime] Initial render with VDom events")
             element <- VDom.createElement(newVNode)
             _ <- IO.delay(container.appendChild(element))
             _ <- currentVNodeRef.set(Some(newVNode))
-            _ <- IO.delay(
-              org.scalajs.dom.console.log(
-                "[Runtime] Initial render complete - VDom events are active"
-              )
+            _ <- IO.println(
+              "[Runtime] Initial render complete - VDom events are active"
             )
           } yield ()
 
@@ -295,11 +267,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
                 for {
                   _ <- VDom.patch(container.firstChild, patches)
                   _ <- currentVNodeRef.set(Some(newVNode))
-                  _ <- IO.delay(
-                    org.scalajs.dom.console.log(
-                      "[Runtime] DOM updated with VDom events"
-                    )
-                  )
+                  _ <- IO.println("[Runtime] DOM updated with VDom events")
                 } yield ()
               } else IO.unit
           } yield ()
@@ -318,9 +286,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       errorRef: Ref[IO, Option[AppError]]
   ): IO[Unit] = {
     val renderCycle = for {
-      _ <- IO.delay(
-        org.scalajs.dom.console.log("[Runtime] Render cycle starting")
-      )
+      _ <- IO.println("[Runtime] Render cycle starting")
       currentModel <- modelRef.get
 
       // Check for errors and render error view if needed
@@ -361,12 +327,8 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
         case None =>
           // Initial render with error handling
           val initialRender = for {
-            _ <- IO.delay(
-              org.scalajs.dom.console.log("[Runtime] Initial render")
-            )
-            _ <- IO.delay(
-              org.scalajs.dom.console.log("[Runtime] Creating DOM element")
-            )
+            _ <- IO.println("[Runtime] Initial render")
+            _ <- IO.println("[Runtime] Creating DOM element")
             element <- VDom.createElement(newVNode).handleErrorWith { error =>
               IO.delay(
                 org.scalajs.dom.console
@@ -379,9 +341,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
                   )
                 )
             }
-            _ <- IO.delay(
-              org.scalajs.dom.console.log("[Runtime] DOM element created")
-            )
+            _ <- IO.println("[Runtime] DOM element created")
             _ <- IO.delay(
               org.scalajs.dom.console
                 .log("[Runtime] Appending element to container")
@@ -416,9 +376,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
         case Some(oldVNode) =>
           // Update render with error handling
           val updateRender = for {
-            _ <- IO.delay(
-              org.scalajs.dom.console.log("[Runtime] Update render")
-            )
+            _ <- IO.println("[Runtime] Update render")
             patches <- IO.delay(VDom.diff(oldVNode, newVNode)).handleErrorWith {
               error =>
                 IO.delay(
@@ -459,11 +417,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       val renderError =
         RenderError(s"Render cycle failed: ${error.getMessage}", Some(error))
       errorRef.set(Some(renderError)) *>
-        IO.delay(
-          org.scalajs.dom.console.error(
-            s"Render loop error: ${renderError.message}"
-          )
-        ) *>
+        IO.println(s"Render loop error: ${renderError.message}") *>
         IO.sleep(100.millis) // Longer delay on error to prevent spam
     }.foreverM
   }

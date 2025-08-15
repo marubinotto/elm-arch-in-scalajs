@@ -22,9 +22,7 @@ object Main extends IOApp.Simple {
     */
   def run: IO[Unit] = {
     for {
-      _ <- IO.delay(
-        console.log("Starting TodoMVC Elm Architecture application...")
-      )
+      _ <- IO.println("Starting TodoMVC Elm Architecture application...")
 
       // Initialize the application with error handling
       _ <- initializeApplication()
@@ -44,14 +42,12 @@ object Main extends IOApp.Simple {
       container <- findAppContainer()
 
       // Log successful container discovery
-      _ <- IO.delay(
-        console.log(s"Found application container: ${container.id}")
-      )
+      _ <- IO.println(s"Found application container: ${container.id}")
 
       // Create and start the runtime
-      _ <- IO.delay(console.log("Creating TodoApp runtime..."))
+      _ <- IO.println("Creating TodoApp runtime...")
       _ <- createAndStartRuntime(container)
-      _ <- IO.delay(console.log("TodoMVC application started successfully"))
+      _ <- IO.println("TodoMVC application started successfully")
 
       // Notify the HTML page that the app is ready
       _ <- notifyAppReady()
@@ -68,17 +64,17 @@ object Main extends IOApp.Simple {
     */
   private def createAndStartRuntime(container: Element): IO[Unit] = {
     for {
-      _ <- IO.delay(console.log("Creating TodoApp runtime..."))
+      _ <- IO.println("Creating TodoApp runtime...")
 
       // Create the runtime with TodoApp
       runtime = new architecture.Runtime(todomvc.TodoApp)
 
-      _ <- IO.delay(console.log("Starting TodoApp runtime..."))
+      _ <- IO.println("Starting TodoApp runtime...")
 
       // Start the runtime
       _ <- runtime.start(container)
 
-      _ <- IO.delay(console.log("TodoApp runtime started successfully"))
+      _ <- IO.println("TodoApp runtime started successfully")
 
     } yield ()
   }
@@ -111,18 +107,16 @@ object Main extends IOApp.Simple {
   private def handleInitializationError(error: Throwable): IO[Unit] = {
     for {
       // Log the error for debugging
-      _ <- IO.delay(
-        console.error("Failed to initialize TodoMVC application:", error)
+      _ <- IO.println(
+        s"Failed to initialize TodoMVC application: ${error.getMessage}"
       )
 
       // Show error to user via HTML page function
       _ <- showErrorToUser(error.getMessage)
 
       // Optionally, attempt recovery or provide fallback
-      _ <- IO.delay(
-        console.log(
-          "Application initialization failed. Please refresh the page."
-        )
+      _ <- IO.println(
+        "Application initialization failed. Please refresh the page."
       )
 
     } yield ()
@@ -143,14 +137,15 @@ object Main extends IOApp.Simple {
         val showApp = dom.window.asInstanceOf[scala.scalajs.js.Dynamic].showApp
         if (showApp != null && !scala.scalajs.js.isUndefined(showApp)) {
           showApp.asInstanceOf[scala.scalajs.js.Function0[Unit]]()
-          console.log("Notified HTML page that app is ready")
+          // Note: This is a direct DOM interaction, keeping console for browser debugging
+          dom.console.log("Notified HTML page that app is ready")
         } else {
-          console.warn("showApp function not found on window object")
+          dom.console.warn("showApp function not found on window object")
         }
       } match {
         case Success(_) => ()
         case Failure(e) =>
-          console.warn(s"Failed to notify HTML page: ${e.getMessage}")
+          dom.console.warn(s"Failed to notify HTML page: ${e.getMessage}")
       }
     }
   }
@@ -174,36 +169,18 @@ object Main extends IOApp.Simple {
         if (showError != null && !scala.scalajs.js.isUndefined(showError)) {
           showError
             .asInstanceOf[scala.scalajs.js.Function1[String, Unit]](message)
-          console.log(s"Showed error to user: $message")
+          // Note: This is a direct DOM interaction, keeping console for browser debugging
+          dom.console.log(s"Showed error to user: $message")
         } else {
-          console.error(s"showError function not found. Error: $message")
+          dom.console.error(s"showError function not found. Error: $message")
         }
       } match {
         case Success(_) => ()
         case Failure(e) =>
-          console.error(s"Failed to show error to user: ${e.getMessage}")
-          console.error(s"Original error: $message")
+          dom.console.error(s"Failed to show error to user: ${e.getMessage}")
+          dom.console.error(s"Original error: $message")
       }
     }
   }
 
-  /** Console logging utilities for better debugging */
-  private object console {
-    def log(message: String): Unit = {
-      dom.console.log(s"[TodoMVC] $message")
-    }
-
-    def warn(message: String): Unit = {
-      dom.console.warn(s"[TodoMVC] $message")
-    }
-
-    def error(message: String): Unit = {
-      dom.console.error(s"[TodoMVC] $message")
-    }
-
-    def error(message: String, error: Throwable): Unit = {
-      dom.console.error(s"[TodoMVC] $message")
-      dom.console.error(error)
-    }
-  }
 }
