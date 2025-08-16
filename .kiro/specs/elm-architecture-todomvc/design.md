@@ -299,52 +299,119 @@ All state changes flow through typed messages:
 4. New state triggers view re-rendering
 5. Virtual DOM diffing optimizes actual DOM updates
 
+## Design Principles
+
+### Type Safety and Fail-Fast Philosophy
+
+The architecture follows strict type safety principles and fail-fast error handling:
+
+1. **Make Invalid States Unrepresentable**: Use the type system to prevent invalid states rather than validating them at runtime
+2. **Fail-Fast on Programming Errors**: Let bugs surface clearly during development rather than masking them with recovery mechanisms
+3. **Developer Responsibility**: Update functions must maintain model invariants - violations are bugs, not recoverable errors
+4. **No Runtime Validation**: Avoid defensive programming that hides bugs behind fallback mechanisms
+
+### Type-Driven Design Examples
+
+```scala
+// Instead of runtime validation, use types that prevent invalid states
+
+// Bad: Runtime validation for positive IDs
+case class Todo(id: Int, text: String, completed: Boolean)
+def validateTodoId(id: Int): Either[ValidationError, Int] = 
+  if (id <= 0) Left(ValidationError("id", "Must be positive", id)) else Right(id)
+
+// Good: Use refined types or smart constructors
+opaque type TodoId = Int
+object TodoId {
+  def apply(value: Int): TodoId = {
+    require(value > 0, "TodoId must be positive")
+    value
+  }
+}
+
+// Bad: List allows duplicates, requires runtime validation
+case class TodoModel(todos: List[Todo], ...)
+
+// Good: Map prevents duplicates by design
+case class TodoModel(todos: Map[TodoId, Todo], ...)
+
+// Bad: Optional ID reference that might not exist
+case class TodoModel(..., editingTodo: Option[Int])
+
+// Good: Direct reference that guarantees existence
+case class TodoModel(..., editingTodo: Option[Todo])
+```
+
+### Contract-Based Programming
+
+```scala
+// Update functions have a contract: (Msg, Model) => Update[Model, Msg]
+// If this contract is violated (e.g., returning null), it's a programming error
+// The type system enforces non-null references in Scala
+
+trait App[Model, Msg] {
+  // Contract: Must return valid Update with non-null model
+  def update(msg: Msg, model: Model): Update[Model, Msg]
+  
+  // Contract: Must return valid VNode
+  def view(model: Model, dispatch: Option[Msg => IO[Unit]]): VNode
+}
+```
+
 ## Error Handling
 
-### Runtime Error Handling
+### Principled Error Handling
+
+Error handling distinguishes between:
+
+1. **Programming Errors**: Type errors, contract violations, logic bugs → Fail fast
+2. **Runtime Errors**: Network failures, DOM issues, external service problems → Handle gracefully
+3. **User Errors**: Invalid input, business rule violations → Validate at boundaries
 
 ```scala
 import cats.effect.IO
 import cats.syntax.all._
 
-// Safe message dispatching with Cats Effect error handling
+// Handle external/runtime errors gracefully
 def safeDispatch(msg: Msg): IO[Unit] = 
   dispatch(msg).handleErrorWith { 
     case e: Exception => IO.println(s"Error dispatching message: ${e.getMessage}")
   }
 
-// Error types
-sealed trait AppError extends Throwable
-case class RuntimeError(message: String) extends AppError
-case class RenderError(message: String) extends AppError  
-case class ValidationError(field: String, message: String) extends AppError
+// Error types for runtime issues only
+sealed trait RuntimeError extends Throwable
+case class NetworkError(message: String) extends RuntimeError
+case class DOMError(message: String) extends RuntimeError  
+case class StorageError(message: String) extends RuntimeError
 
-// Error recovery with IO
+// Error recovery for external failures only
 def withErrorRecovery[A](io: IO[A], fallback: A): IO[A] = 
   io.handleErrorWith(_ => IO.pure(fallback))
 ```
 
-### Input Validation
+### Input Sanitization (Not Validation)
 
 ```scala
 import com.softwaremill.quicklens._
 
-// Validation with QuickLens transformations
-def validateAndUpdateTodo(id: Int, newText: String, model: TodoModel): IO[TodoModel] = {
-  if (newText.trim.isEmpty) {
-    IO.pure(model.modify(_.todos).using(_.filterNot(_.id == id)))
+// Sanitize user input at boundaries, don't validate internal state
+def sanitizeUserInput(text: String): String = 
+  Option(text).getOrElse("").trim
+
+def updateTodo(id: TodoId, newText: String, model: TodoModel): TodoModel = {
+  val sanitizedText = sanitizeUserInput(newText)
+  if (sanitizedText.isEmpty) {
+    model.modify(_.todos).using(_ - id)  // Remove empty todos
   } else {
-    IO.pure(model.modify(_.todos.each.when(_.id == id))
-      .using(_.modify(_.text).setTo(newText.trim)
-              .modify(_.editing).setTo(false)))
+    model.modify(_.todos).using(_.updated(id, 
+      model.todos(id).copy(text = sanitizedText, editing = false)))
   }
 }
 ```
 
-- Empty todo text validation before adding
-- Safe DOM element access with Option types  
-- Bounds checking for todo ID operations
-- Event handler error boundaries
+- Sanitize user input at system boundaries
+- Use types that prevent invalid states by construction
+- No runtime validation of internal model consistency
 - QuickLens enables safe nested transformations with compile-time guarantees
 
 ### DOM Operation Safety

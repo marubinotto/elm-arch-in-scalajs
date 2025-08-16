@@ -113,11 +113,11 @@ object TodoJson {
     */
   def serializeModel(model: TodoModel): String = {
     val jsObj = js.Dynamic.literal(
-      "todos" -> JSON.parse(serializeTodos(model.todos)),
+      "todos" -> JSON.parse(serializeTodos(model.todoList)),
       "newTodoText" -> model.newTodoText,
       "filter" -> model.filter.displayName,
-      "editingTodo" -> model.editingTodo.map(_.asInstanceOf[js.Any]).orNull,
-      "editText" -> model.editText
+      "editingTodo" -> model.editingTodo.map(_.id.asInstanceOf[js.Any]).orNull,
+      "nextId" -> model.nextId.value
     )
     JSON.stringify(jsObj)
   }
@@ -142,20 +142,37 @@ object TodoJson {
       val filter =
         TodoFilter.fromString(jsObj.filter.asInstanceOf[String]).getOrElse(All)
 
-      val editingTodo =
+      val editingTodoId =
         if (jsObj.editingTodo != null && !js.isUndefined(jsObj.editingTodo)) {
           Some(jsObj.editingTodo.asInstanceOf[Int])
         } else {
           None
         }
 
-      TodoModel(
-        todos = todos,
-        newTodoText = jsObj.newTodoText.asInstanceOf[String],
-        filter = filter,
-        editingTodo = editingTodo,
-        editText = jsObj.editText.asInstanceOf[String]
-      )
+      val nextId = if (jsObj.nextId != null && !js.isUndefined(jsObj.nextId)) {
+        TodoId.unsafe(jsObj.nextId.asInstanceOf[Int])
+      } else {
+        TodoId(if (todos.isEmpty) 1 else todos.map(_.id).max + 1)
+      }
+
+      // Create model with todos and then set editing todo if it exists
+      val baseModel = TodoModel
+        .withTodos(todos)
+        .copy(
+          newTodoText = jsObj.newTodoText.asInstanceOf[String],
+          filter = filter,
+          nextId = nextId
+        )
+
+      // Set editing todo if it exists and is valid
+      editingTodoId match {
+        case Some(id) =>
+          baseModel.getTodo(TodoId.unsafe(id)) match {
+            case Some(todo) => baseModel.copy(editingTodo = Some(todo))
+            case None       => baseModel
+          }
+        case None => baseModel
+      }
     }
   }
 }

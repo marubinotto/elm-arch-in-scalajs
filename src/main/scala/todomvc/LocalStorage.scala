@@ -95,13 +95,7 @@ object LocalStorage {
                   List.empty[Todo]
                 } else {
                   TodoJson.parseTodos(jsonString) match {
-                    case Success(todos) =>
-                      // Validate loaded todos
-                      TodoValidation.validateTodoList(todos) match {
-                        case Right(validTodos) => validTodos
-                        case Left(error) =>
-                          List.empty[Todo]
-                      }
+                    case Success(todos) => todos
                     case Failure(error) =>
                       // Try to recover by clearing corrupted data (fire and forget)
                       import cats.effect.unsafe.implicits.global
@@ -134,59 +128,53 @@ object LocalStorage {
     *   IO operation that completes when todos are saved
     */
   def saveTodos(todos: List[Todo]): IO[Unit] = {
-    // First validate the todos
-    TodoValidation.validateTodoList(todos) match {
-      case Left(error) =>
-        IO.println(s"Cannot save invalid todos: ${error.userMessage}")
-      case Right(validTodos) =>
-        // Check if localStorage is available
-        isAvailable
-          .flatMap { available =>
-            if (!available) {
-              IO.println(
-                "localStorage is not available, todos will not be persisted"
-              )
+    // Check if localStorage is available
+    isAvailable
+      .flatMap { available =>
+        if (!available) {
+          IO.println(
+            "localStorage is not available, todos will not be persisted"
+          )
+        } else {
+          IO.delay {
+            TodoJson.serializeTodos(todos)
+          }.flatMap { jsonString =>
+            // Check if JSON is reasonable size (< 5MB)
+            if (jsonString.length > 5 * 1024 * 1024) {
+              IO.println("Todo data is too large to save to localStorage")
             } else {
-              IO.delay {
-                TodoJson.serializeTodos(validTodos)
-              }.flatMap { jsonString =>
-                // Check if JSON is reasonable size (< 5MB)
-                if (jsonString.length > 5 * 1024 * 1024) {
-                  IO.println("Todo data is too large to save to localStorage")
-                } else {
-                  setItem(TODOS_KEY, jsonString).handleErrorWith { error =>
-                    // Try to handle quota exceeded error
-                    if (
-                      error.getMessage.contains(
-                        "QuotaExceededError"
-                      ) || error.getMessage.contains("quota")
-                    ) {
+              setItem(TODOS_KEY, jsonString).handleErrorWith { error =>
+                // Try to handle quota exceeded error
+                if (
+                  error.getMessage.contains(
+                    "QuotaExceededError"
+                  ) || error.getMessage.contains("quota")
+                ) {
+                  IO.println(
+                    "localStorage quota exceeded, cannot save todos"
+                  ) *>
+                    // Try to clear some space by removing old data
+                    clearTodos *>
+                    setItem(TODOS_KEY, jsonString).handleErrorWith { _ =>
                       IO.println(
-                        "localStorage quota exceeded, cannot save todos"
-                      ) *>
-                        // Try to clear some space by removing old data
-                        clearTodos *>
-                        setItem(TODOS_KEY, jsonString).handleErrorWith { _ =>
-                          IO.println(
-                            "Failed to save todos even after clearing storage"
-                          )
-                        }
-                    } else {
-                      IO.println(
-                        s"Failed to save todos to localStorage: ${error.getMessage}"
+                        "Failed to save todos even after clearing storage"
                       )
                     }
-                  }
+                } else {
+                  IO.println(
+                    s"Failed to save todos to localStorage: ${error.getMessage}"
+                  )
                 }
-              }.handleErrorWith { error =>
-                IO.println(s"Failed to serialize todos: ${error.getMessage}")
               }
             }
+          }.handleErrorWith { error =>
+            IO.println(s"Failed to serialize todos: ${error.getMessage}")
           }
-          .handleErrorWith { error =>
-            IO.println(s"Critical error saving todos: ${error.getMessage}")
-          }
-    }
+        }
+      }
+      .handleErrorWith { error =>
+        IO.println(s"Critical error saving todos: ${error.getMessage}")
+      }
   }
 
   /** Clear all todos from local storage

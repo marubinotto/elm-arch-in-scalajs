@@ -163,9 +163,8 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           }
         }
 
-        // Validate the updated model
-        validatedModel <- validateModel(update.model, currentModel)
-        _ <- modelRef.set(validatedModel)
+        // Set the updated model directly - update function contract guarantees validity
+        _ <- modelRef.set(update.model)
 
         // Execute command with error handling
         _ <- executeCmd(update.cmd, msgQueue).handleErrorWith { error =>
@@ -173,7 +172,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
         }
 
         // Update subscriptions with error handling
-        newSubs <- IO.delay(app.subscriptions(validatedModel)).handleErrorWith {
+        newSubs <- IO.delay(app.subscriptions(update.model)).handleErrorWith {
           error =>
             IO.println(s"Subscription update failed: ${error.getMessage}") *>
               IO.pure(Sub.none)
@@ -197,22 +196,6 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           IO.println(s"Message processing error: ${appError.message}")
       }
     }.foreverM
-  }
-
-  /** Validate model state and recover from invalid states */
-  private def validateModel(
-      newModel: Model,
-      fallbackModel: Model
-  ): IO[Model] = {
-    IO.delay {
-      // Basic validation - in a real app, you'd have more specific validation
-      if (newModel == null) {
-        org.scalajs.dom.console.warn("Model is null, using fallback")
-        fallbackModel
-      } else {
-        newModel
-      }
-    }
   }
 
   /** Render loop that updates the DOM when the model changes

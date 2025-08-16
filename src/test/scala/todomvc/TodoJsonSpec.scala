@@ -166,16 +166,17 @@ class TodoJsonSpec extends AnyFunSpec with Matchers {
 
     describe("serializeModel and parseModel") {
       it("should serialize and deserialize TodoModel") {
-        val model = TodoModel(
-          todos = List(
-            Todo(1, "Buy milk", completed = false, editing = false),
-            Todo(2, "Walk dog", completed = true, editing = false)
-          ),
-          newTodoText = "New todo text",
-          filter = Active,
-          editingTodo = Some(1),
-          editText = "Editing text"
+        val todos = List(
+          Todo(1, "Buy milk", completed = false, editing = false),
+          Todo(2, "Walk dog", completed = true, editing = false)
         )
+        val model = TodoModel
+          .withTodos(todos)
+          .copy(
+            newTodoText = "New todo text",
+            filter = Active,
+            editingTodo = Some(todos.head)
+          )
 
         val json = TodoJson.serializeModel(model)
         val parsed = TodoJson.parseModel(json)
@@ -184,13 +185,7 @@ class TodoJsonSpec extends AnyFunSpec with Matchers {
       }
 
       it("should handle model with empty todos") {
-        val model = TodoModel(
-          todos = List.empty,
-          newTodoText = "",
-          filter = All,
-          editingTodo = None,
-          editText = ""
-        )
+        val model = TodoModel.init
 
         val json = TodoJson.serializeModel(model)
         val parsed = TodoJson.parseModel(json)
@@ -212,13 +207,11 @@ class TodoJsonSpec extends AnyFunSpec with Matchers {
       }
 
       it("should handle model with no editing todo") {
-        val model = TodoModel(
-          todos = List(Todo(1, "Test", false, false)),
-          newTodoText = "Test",
-          filter = All,
-          editingTodo = None,
-          editText = ""
-        )
+        val model = TodoModel
+          .withTodos(List(Todo(1, "Test", false, false)))
+          .copy(
+            newTodoText = "Test"
+          )
 
         val json = TodoJson.serializeModel(model)
         val parsed = TodoJson.parseModel(json)
@@ -280,7 +273,7 @@ class TodoJsonSpec extends AnyFunSpec with Matchers {
         json should include("\"newTodoText\"")
         json should include("\"filter\"")
         json should include("\"editingTodo\"")
-        json should include("\"editText\"")
+        json should include("\"nextId\"")
       }
     }
   }

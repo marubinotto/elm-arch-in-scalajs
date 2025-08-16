@@ -19,21 +19,21 @@ class TodoModelSpec extends AnyFreeSpec with Matchers {
       model.newTodoText shouldBe ""
       model.filter shouldBe All
       model.editingTodo shouldBe None
-      model.editText shouldBe ""
+      model.nextId.value shouldBe 1
     }
 
     "should create model with initial todos" in {
       val todos = List(activeTodo1, completedTodo)
       val model = TodoModel.withTodos(todos)
 
-      model.todos shouldBe todos
+      model.todoList should contain theSameElementsAs todos
       model.newTodoText shouldBe ""
       model.filter shouldBe All
     }
 
     "should filter todos correctly" in {
       val todos = List(activeTodo1, activeTodo2, completedTodo)
-      val model = TodoModel.init.copy(todos = todos)
+      val model = TodoModel.withTodos(todos)
 
       // All filter
       model
@@ -56,14 +56,14 @@ class TodoModelSpec extends AnyFreeSpec with Matchers {
 
     "should count active todos correctly" in {
       val todos = List(activeTodo1, activeTodo2, completedTodo)
-      val model = TodoModel.init.copy(todos = todos)
+      val model = TodoModel.withTodos(todos)
 
       model.activeCount shouldBe 2
     }
 
     "should count completed todos correctly" in {
       val todos = List(activeTodo1, activeTodo2, completedTodo)
-      val model = TodoModel.init.copy(todos = todos)
+      val model = TodoModel.withTodos(todos)
 
       model.completedCount shouldBe 1
     }
@@ -75,8 +75,8 @@ class TodoModelSpec extends AnyFreeSpec with Matchers {
       )
       val mixed = List(activeTodo1, completedTodo)
 
-      TodoModel.init.copy(todos = allCompleted).allCompleted shouldBe true
-      TodoModel.init.copy(todos = mixed).allCompleted shouldBe false
+      TodoModel.withTodos(allCompleted).allCompleted shouldBe true
+      TodoModel.withTodos(mixed).allCompleted shouldBe false
       TodoModel.init.allCompleted shouldBe false // empty list
     }
 
@@ -84,8 +84,8 @@ class TodoModelSpec extends AnyFreeSpec with Matchers {
       val todos = List(activeTodo1, completedTodo)
       val activeTodos = List(activeTodo1, activeTodo2)
 
-      TodoModel.init.copy(todos = todos).hasCompleted shouldBe true
-      TodoModel.init.copy(todos = activeTodos).hasCompleted shouldBe false
+      TodoModel.withTodos(todos).hasCompleted shouldBe true
+      TodoModel.withTodos(activeTodos).hasCompleted shouldBe false
       TodoModel.init.hasCompleted shouldBe false // empty list
     }
 
@@ -95,29 +95,31 @@ class TodoModelSpec extends AnyFreeSpec with Matchers {
         Todo.create(3, "Third"),
         Todo.create(2, "Second")
       )
-      val model = TodoModel.init.copy(todos = todos)
+      val model = TodoModel.withTodos(todos)
 
-      model.nextId shouldBe 4
-      TodoModel.init.nextId shouldBe 1 // empty list
+      model.nextId.value shouldBe 4
+      TodoModel.init.nextId.value shouldBe 1 // empty list
     }
 
     "should find todos by ID" in {
       val todos = List(activeTodo1, activeTodo2, completedTodo)
-      val model = TodoModel.init.copy(todos = todos)
+      val model = TodoModel.withTodos(todos)
 
-      model.getTodo(1) shouldBe Some(activeTodo1)
-      model.getTodo(3) shouldBe Some(completedTodo)
-      model.getTodo(999) shouldBe None
+      model.getTodo(TodoId.unsafe(1)) shouldBe Some(activeTodo1)
+      model.getTodo(TodoId.unsafe(3)) shouldBe Some(completedTodo)
+      model.getTodo(TodoId.unsafe(999)) shouldBe None
     }
 
     "should check editing status correctly" in {
-      val model = TodoModel.init.copy(editingTodo = Some(1))
+      val todo1 = Todo.create(1, "Todo 1")
+      val todo2 = Todo.create(2, "Todo 2")
+      val model = TodoModel.init.copy(editingTodo = Some(todo1))
 
-      model.isEditing(1) shouldBe true
-      model.isEditing(2) shouldBe false
+      model.isEditing(todo1) shouldBe true
+      model.isEditing(todo2) shouldBe false
 
       val notEditingModel = TodoModel.init.copy(editingTodo = None)
-      notEditingModel.isEditing(1) shouldBe false
+      notEditingModel.isEditing(todo1) shouldBe false
     }
   }
 }
