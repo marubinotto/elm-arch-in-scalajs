@@ -49,9 +49,11 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
 
       modelRef <- Ref.of[IO, Model](initialModel)
       msgQueue <- Queue.unbounded[IO, Msg]
-      subRef <- Ref.of[IO, Sub[Msg]](Sub.none)
       currentVNodeRef <- Ref.of[IO, Option[VNode]](None)
       errorRef <- Ref.of[IO, Option[AppError]](None)
+
+      // Create subscription manager
+      subscriptionManager <- SubscriptionManager.create(msgQueue)
 
       // Store message queue for dispatch method
       _ <- IO.delay { msgQueueOpt = Some(msgQueue) }
@@ -61,7 +63,7 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
       messageProcessor <- processMessagesWithErrorHandling(
         modelRef,
         msgQueue,
-        subRef,
+        subscriptionManager,
         errorRef
       ).start
       _ <- IO.println("[Runtime] Message processor started")
@@ -72,11 +74,10 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
         errorRef
       ).start
       _ <- IO.println("[Runtime] Renderer started")
-      subscriptionManager <- subscriptionLoopWithErrorHandling(
-        subRef,
-        msgQueue,
-        errorRef
-      ).start
+
+      // Initialize subscriptions
+      initialSubs = app.subscriptions(initialModel)
+      _ <- subscriptionManager.updateSubscriptions(initialSubs)
       _ <- IO.println("[Runtime] Subscription manager started")
 
       // Execute initial command with error handling
@@ -110,39 +111,11 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
     }
   }
 
-  /** Process messages from the queue and update the model
-    *
-    * @param modelRef
-    *   Reference to the current model state
-    * @param msgQueue
-    *   Queue of messages to process
-    * @param subRef
-    *   Reference to current subscriptions
-    * @return
-    *   IO that runs the message processing loop
-    */
-  private def processMessages(
-      modelRef: Ref[IO, Model],
-      msgQueue: Queue[IO, Msg],
-      subRef: Ref[IO, Sub[Msg]]
-  ): IO[Unit] = {
-    msgQueue.take.flatMap { msg =>
-      for {
-        currentModel <- modelRef.get
-        update = app.update(msg, currentModel)
-        _ <- modelRef.set(update.model)
-        _ <- executeCmd(update.cmd, msgQueue)
-        newSubs = app.subscriptions(update.model)
-        _ <- subRef.set(newSubs)
-      } yield ()
-    }.foreverM
-  }
-
   /** Process messages with comprehensive error handling */
   private def processMessagesWithErrorHandling(
       modelRef: Ref[IO, Model],
       msgQueue: Queue[IO, Msg],
-      subRef: Ref[IO, Sub[Msg]],
+      subscriptionManager: SubscriptionManager[Msg],
       errorRef: Ref[IO, Option[AppError]]
   ): IO[Unit] = {
     msgQueue.take.flatMap { msg =>
@@ -177,7 +150,12 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
             IO.println(s"Subscription update failed: ${error.getMessage}") *>
               IO.pure(Sub.none)
         }
-        _ <- subRef.set(newSubs)
+        _ <- subscriptionManager.updateSubscriptions(newSubs).handleErrorWith {
+          error =>
+            IO.println(
+              s"Subscription manager update failed: ${error.getMessage}"
+            )
+        }
 
         // Clear any previous errors on successful processing
         _ <- errorRef.set(None)
@@ -403,210 +381,6 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
         IO.println(s"Render loop error: ${renderError.message}") *>
         IO.sleep(100.millis) // Longer delay on error to prevent spam
     }.foreverM
-  }
-
-  /** Subscription loop that manages external events and timers
-    *
-    * @param subRef
-    *   Reference to current subscriptions
-    * @param msgQueue
-    *   Queue to send messages to
-    * @return
-    *   IO that runs the subscription management loop
-    */
-  private def subscriptionLoop(
-      subRef: Ref[IO, Sub[Msg]],
-      msgQueue: Queue[IO, Msg]
-  ): IO[Unit] = {
-    // Keep track of active subscription fibers
-    Ref.of[IO, Map[String, Fiber[IO, Throwable, Unit]]](Map.empty).flatMap {
-      activeFibersRef =>
-        (for {
-          currentSub <- subRef.get
-          activeFibers <- activeFibersRef.get
-
-          // Cancel all existing subscriptions
-          _ <- activeFibers.values.toList.traverse_(_.cancel)
-          _ <- activeFibersRef.set(Map.empty)
-
-          // Start new subscriptions
-          newFibers <- startSubscriptions(currentSub, msgQueue)
-          _ <- activeFibersRef.set(newFibers)
-
-          _ <- IO
-            .sleep(100.millis) // Check for subscription changes periodically
-        } yield ()).foreverM
-    }
-  }
-
-  /** Subscription loop with comprehensive error handling */
-  private def subscriptionLoopWithErrorHandling(
-      subRef: Ref[IO, Sub[Msg]],
-      msgQueue: Queue[IO, Msg],
-      errorRef: Ref[IO, Option[AppError]]
-  ): IO[Unit] = {
-    // Keep track of active subscription fibers
-    Ref.of[IO, Map[String, Fiber[IO, Throwable, Unit]]](Map.empty).flatMap {
-      activeFibersRef =>
-        val subscriptionCycle = for {
-          currentSub <- subRef.get
-          activeFibers <- activeFibersRef.get
-
-          // Cancel all existing subscriptions with error handling
-          _ <- activeFibers.values.toList.traverse_ { fiber =>
-            fiber.cancel.handleErrorWith { error =>
-              IO.delay(
-                org.scalajs.dom.console
-                  .warn(s"Failed to cancel subscription: ${error.getMessage}")
-              )
-            }
-          }
-          _ <- activeFibersRef.set(Map.empty)
-
-          // Start new subscriptions with error handling
-          newFibers <- startSubscriptions(currentSub, msgQueue)
-            .handleErrorWith { error =>
-              IO.delay(
-                org.scalajs.dom.console
-                  .error(s"Failed to start subscriptions: ${error.getMessage}")
-              ) *>
-                IO.pure(Map.empty[String, Fiber[IO, Throwable, Unit]])
-            }
-          _ <- activeFibersRef.set(newFibers)
-
-          _ <- IO
-            .sleep(100.millis) // Check for subscription changes periodically
-        } yield ()
-
-        subscriptionCycle.handleErrorWith { error =>
-          val subError = SubscriptionError(
-            s"Subscription management failed: ${error.getMessage}",
-            Some(error)
-          )
-          errorRef.set(Some(subError)) *>
-            IO.delay(
-              org.scalajs.dom.console
-                .error(s"Subscription loop error: ${subError.message}")
-            ) *>
-            IO.sleep(1000.millis) // Longer delay on error
-        }.foreverM
-    }
-  }
-
-  /** Start subscriptions and return a map of active fibers
-    *
-    * @param sub
-    *   The subscription to start
-    * @param msgQueue
-    *   Queue to send messages to
-    * @return
-    *   IO containing a map of subscription identifiers to fibers
-    */
-  private def startSubscriptions(
-      sub: Sub[Msg],
-      msgQueue: Queue[IO, Msg]
-  ): IO[Map[String, Fiber[IO, Throwable, Unit]]] = {
-    sub match {
-      case SubNone => IO.pure(Map.empty)
-
-      case SubInterval(duration, msg) =>
-        val intervalId = s"interval_${duration.toMillis}_${msg.hashCode}"
-        val intervalLoop =
-          (IO.sleep(duration) *> msgQueue.offer(msg)).foreverM.void
-        intervalLoop.start.map(fiber => Map(intervalId -> fiber))
-
-      case SubKeyboard(onKeyDown) =>
-        val keyboardId = s"keyboard_${onKeyDown.hashCode}"
-        val keyboardLoop = setupKeyboardListener(onKeyDown, msgQueue)
-        keyboardLoop.start.map(fiber => Map(keyboardId -> fiber))
-
-      case SubMouse(onClick) =>
-        val mouseId = s"mouse_${onClick.hashCode}"
-        val mouseLoop = setupMouseListener(onClick, msgQueue)
-        mouseLoop.start.map(fiber => Map(mouseId -> fiber))
-
-      case SubWebSocket(url, onMessage, onError) =>
-        val wsId = s"websocket_${url.hashCode}"
-        val wsLoop = setupWebSocketListener(url, onMessage, onError, msgQueue)
-        wsLoop.start.map(fiber => Map(wsId -> fiber))
-
-      case SubCustom(id, setup) =>
-        val customId = s"custom_$id"
-        val dispatch = (msg: Msg) => msgQueue.offer(msg)
-        setup(dispatch).flatMap { cleanup =>
-          // Return a fiber that runs the cleanup when cancelled
-          cleanup.start.map(fiber => Map(customId -> fiber))
-        }
-
-      case SubBatch(subs) =>
-        subs.zipWithIndex
-          .traverse { case (s, index) =>
-            startSubscriptions(s, msgQueue).map(_.map { case (id, fiber) =>
-              (s"batch_${index}_$id", fiber)
-            })
-          }
-          .map(_.flatten.toMap)
-    }
-  }
-
-  /** Setup keyboard event listener */
-  private def setupKeyboardListener(
-      onKeyDown: String => Msg,
-      msgQueue: Queue[IO, Msg]
-  ): IO[Unit] = {
-    IO.async_[Unit] { cb =>
-      val listener: org.scalajs.dom.KeyboardEvent => Unit = { event =>
-        val msg = onKeyDown(event.key)
-        msgQueue.offer(msg).unsafeRunAndForget()
-      }
-
-      org.scalajs.dom.document.addEventListener("keydown", listener)
-
-      // This subscription runs forever until cancelled
-      // The cleanup happens when the fiber is cancelled
-    }
-  }
-
-  /** Setup mouse event listener */
-  private def setupMouseListener(
-      onClick: (Int, Int) => Msg,
-      msgQueue: Queue[IO, Msg]
-  ): IO[Unit] = {
-    IO.async_[Unit] { cb =>
-      val listener: org.scalajs.dom.MouseEvent => Unit = { event =>
-        val msg = onClick(event.clientX.toInt, event.clientY.toInt)
-        msgQueue.offer(msg).unsafeRunAndForget()
-      }
-
-      org.scalajs.dom.document.addEventListener("click", listener)
-
-      // This subscription runs forever until cancelled
-    }
-  }
-
-  /** Setup WebSocket listener */
-  private def setupWebSocketListener(
-      url: String,
-      onMessage: String => Msg,
-      onError: String => Msg,
-      msgQueue: Queue[IO, Msg]
-  ): IO[Unit] = {
-    IO.async_[Unit] { cb =>
-      val ws = new org.scalajs.dom.WebSocket(url)
-
-      ws.onmessage = { event =>
-        val msg = onMessage(event.data.toString)
-        msgQueue.offer(msg).unsafeRunAndForget()
-      }
-
-      ws.onerror = { event =>
-        val msg = onError(s"WebSocket error: ${event}")
-        msgQueue.offer(msg).unsafeRunAndForget()
-      }
-
-      // This subscription runs forever until cancelled
-      // WebSocket cleanup would happen when fiber is cancelled
-    }
   }
 
   /** Execute a command by processing its side effects
