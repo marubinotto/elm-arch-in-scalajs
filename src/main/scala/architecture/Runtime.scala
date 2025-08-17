@@ -515,6 +515,29 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
           (IO.sleep(duration) *> msgQueue.offer(msg)).foreverM.void
         intervalLoop.start.map(fiber => Map(intervalId -> fiber))
 
+      case SubKeyboard(onKeyDown) =>
+        val keyboardId = s"keyboard_${onKeyDown.hashCode}"
+        val keyboardLoop = setupKeyboardListener(onKeyDown, msgQueue)
+        keyboardLoop.start.map(fiber => Map(keyboardId -> fiber))
+
+      case SubMouse(onClick) =>
+        val mouseId = s"mouse_${onClick.hashCode}"
+        val mouseLoop = setupMouseListener(onClick, msgQueue)
+        mouseLoop.start.map(fiber => Map(mouseId -> fiber))
+
+      case SubWebSocket(url, onMessage, onError) =>
+        val wsId = s"websocket_${url.hashCode}"
+        val wsLoop = setupWebSocketListener(url, onMessage, onError, msgQueue)
+        wsLoop.start.map(fiber => Map(wsId -> fiber))
+
+      case SubCustom(id, setup) =>
+        val customId = s"custom_$id"
+        val dispatch = (msg: Msg) => msgQueue.offer(msg)
+        setup(dispatch).flatMap { cleanup =>
+          // Return a fiber that runs the cleanup when cancelled
+          cleanup.start.map(fiber => Map(customId -> fiber))
+        }
+
       case SubBatch(subs) =>
         subs.zipWithIndex
           .traverse { case (s, index) =>
@@ -523,6 +546,66 @@ class Runtime[Model, Msg](app: App[Model, Msg]) {
             })
           }
           .map(_.flatten.toMap)
+    }
+  }
+
+  /** Setup keyboard event listener */
+  private def setupKeyboardListener(
+      onKeyDown: String => Msg,
+      msgQueue: Queue[IO, Msg]
+  ): IO[Unit] = {
+    IO.async_[Unit] { cb =>
+      val listener: org.scalajs.dom.KeyboardEvent => Unit = { event =>
+        val msg = onKeyDown(event.key)
+        msgQueue.offer(msg).unsafeRunAndForget()
+      }
+
+      org.scalajs.dom.document.addEventListener("keydown", listener)
+
+      // This subscription runs forever until cancelled
+      // The cleanup happens when the fiber is cancelled
+    }
+  }
+
+  /** Setup mouse event listener */
+  private def setupMouseListener(
+      onClick: (Int, Int) => Msg,
+      msgQueue: Queue[IO, Msg]
+  ): IO[Unit] = {
+    IO.async_[Unit] { cb =>
+      val listener: org.scalajs.dom.MouseEvent => Unit = { event =>
+        val msg = onClick(event.clientX.toInt, event.clientY.toInt)
+        msgQueue.offer(msg).unsafeRunAndForget()
+      }
+
+      org.scalajs.dom.document.addEventListener("click", listener)
+
+      // This subscription runs forever until cancelled
+    }
+  }
+
+  /** Setup WebSocket listener */
+  private def setupWebSocketListener(
+      url: String,
+      onMessage: String => Msg,
+      onError: String => Msg,
+      msgQueue: Queue[IO, Msg]
+  ): IO[Unit] = {
+    IO.async_[Unit] { cb =>
+      val ws = new org.scalajs.dom.WebSocket(url)
+
+      ws.onmessage = { event =>
+        val msg = onMessage(event.data.toString)
+        msgQueue.offer(msg).unsafeRunAndForget()
+      }
+
+      ws.onerror = { event =>
+        val msg = onError(s"WebSocket error: ${event}")
+        msgQueue.offer(msg).unsafeRunAndForget()
+      }
+
+      // This subscription runs forever until cancelled
+      // WebSocket cleanup would happen when fiber is cancelled
     }
   }
 

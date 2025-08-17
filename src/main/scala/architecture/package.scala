@@ -27,6 +27,17 @@ package object architecture {
   case class SubBatch[Msg](subs: List[Sub[Msg]]) extends Sub[Msg]
   case class SubInterval[Msg](duration: FiniteDuration, msg: Msg)
       extends Sub[Msg]
+  case class SubKeyboard[Msg](onKeyDown: String => Msg) extends Sub[Msg]
+  case class SubMouse[Msg](onClick: (Int, Int) => Msg) extends Sub[Msg]
+  case class SubWebSocket[Msg](
+      url: String,
+      onMessage: String => Msg,
+      onError: String => Msg
+  ) extends Sub[Msg]
+  case class SubCustom[Msg](
+      id: String,
+      setup: (Msg => IO[Unit]) => IO[IO[Unit]]
+  ) extends Sub[Msg]
 
   // Cmd companion object with helper functions
   object Cmd {
@@ -41,5 +52,20 @@ package object architecture {
     def interval[Msg](duration: FiniteDuration, msg: Msg): Sub[Msg] =
       SubInterval(duration, msg)
     def batch[Msg](subs: Sub[Msg]*): Sub[Msg] = SubBatch(subs.toList)
+    def keyboard[Msg](onKeyDown: String => Msg): Sub[Msg] = SubKeyboard(
+      onKeyDown
+    )
+    def mouse[Msg](onClick: (Int, Int) => Msg): Sub[Msg] = SubMouse(onClick)
+    def webSocket[Msg](
+        url: String,
+        onMessage: String => Msg,
+        onError: String => Msg
+    ): Sub[Msg] =
+      SubWebSocket(url, onMessage, onError)
+    def custom[Msg](
+        id: String,
+        setup: (Msg => IO[Unit]) => IO[IO[Unit]]
+    ): Sub[Msg] =
+      SubCustom(id, setup)
   }
 }
